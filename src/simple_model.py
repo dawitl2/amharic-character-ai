@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 
 
@@ -24,4 +25,16 @@ class SimpleModel(nn.Module):
 
 model = SimpleModel()
 
-print(model)
+fake_images = torch.randn(4, 1, 64, 64)
+
+outputs = model(fake_images)
+
+predictions = torch.argmax(outputs, dim=1)
+
+print("Raw outputs:")
+print(outputs)
+
+print()
+
+print("Predicted class numbers:")
+print(predictions)
