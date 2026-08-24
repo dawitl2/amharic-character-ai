@@ -22,15 +22,12 @@ loss = loss_function(
     correct_labels
 )
 
-print("Model outputs:")
-print(outputs)
-
-print()
-
-print("Correct labels:")
-print(correct_labels)
-
-print()
-
 print("Loss:")
 print(loss)
+
+loss.backward()
+
+print()
+
+print("Gradients:")
+print(outputs.grad)
