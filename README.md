@@ -517,7 +517,28 @@ Weight updates
 Training loop
 ```
 
-The neural network has **not yet been properly trained on the character dataset**.
+The neural network has now successfully progressed through multiple training phases.
+
+---
+
+# Training Metrics & Experiments
+
+During our experiments, we actively tracked loss and accuracy to understand how the model learns.
+
+### Overfitting Demonstration
+We intentionally forced the model to overfit on a tiny dataset to prove it possesses the capacity to memorize patterns. As the training loss reached zero, the validation loss diverged, clearly illustrating the overfitting phenomenon:
+
+![Overfitting Curve](overfitting_curve.png)
+
+### Large Dataset Training
+After scaling up to a 6,000-image augmented synthetic dataset, the model learned much more generalized features. Here is the learning curve showing stable convergence on a larger scale:
+
+![Large Dataset Curve](large_dataset_curve.png)
+
+### Error Analysis
+We also generated confusion matrices to understand exactly which characters the model struggles to differentiate:
+
+![Confusion Matrix](confusion_matrix.png)
 
 ---
 
