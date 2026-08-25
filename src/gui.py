@@ -136,11 +136,83 @@ class AmharicAIApp(ctk.CTk):
         self.right = ctk.CTkFrame(self, fg_color=BG, corner_radius=0)
         self.right.grid(row=0, column=1, sticky="nsew")
 
+        # Gear button (top-right corner)
+        gear_btn = ctk.CTkButton(self.right, text="⚙", width=36, height=36,
+                                  font=("Segoe UI", 18),
+                                  fg_color="transparent", text_color=TEXT_MUTED,
+                                  hover_color=BORDER, corner_radius=8,
+                                  command=self._show_settings)
+        gear_btn.place(relx=1.0, x=-16, y=16, anchor="ne")
+
         # Center wrapper
         self.center = ctk.CTkFrame(self.right, fg_color="transparent")
         self.center.place(relx=0.5, rely=0.5, anchor="center")
 
         self._show_empty_state()
+
+    def _show_settings(self):
+        """Opens a clean popup with project status information."""
+        popup = ctk.CTkToplevel(self)
+        popup.title("Project Info")
+        popup.geometry("480x440")
+        popup.configure(fg_color=SURFACE)
+        popup.resizable(False, False)
+        popup.grab_set()  # modal
+
+        # Header
+        ctk.CTkLabel(popup, text="Project Status",
+                     font=FONT_HEADING, text_color=TEXT_PRIMARY).pack(pady=(24, 4))
+        ctk.CTkFrame(popup, fg_color=BORDER, height=1).pack(fill="x", padx=28, pady=(8, 16))
+
+        # Info content
+        info_frame = ctk.CTkFrame(popup, fg_color="transparent")
+        info_frame.pack(fill="both", expand=True, padx=28)
+
+        num_classes = len(self.config.get("class_to_idx", {}))
+        class_names = ", ".join(self.config.get("class_to_idx", {}).keys())
+
+        lines = [
+            ("Stage", "Phase 21 — Real Inference"),
+            ("Architecture", self.config.get("architecture", "SimpleModel")),
+            ("Classes", f"{num_classes}  ({class_names})"),
+            ("Image Size", f"{self.config.get('image_width', 64)} × {self.config.get('image_height', 64)} px"),
+            ("Dataset", "~6,000 augmented synthetic images"),
+            ("Training", "15 epochs, SGD (lr=0.01), batch size 64"),
+            ("Test Accuracy", "46.19% on augmented dataset"),
+            ("Capabilities", "Recognizes ሀ, ለ, መ from synthetic images"),
+        ]
+
+        limitations = [
+            "Only 3 Amharic characters are supported.",
+            "Model is a simple linear network (no CNN yet).",
+            "Trained on synthetic data only, not real handwriting.",
+            "Accuracy is limited due to heavy augmentation vs. simple architecture.",
+        ]
+
+        for label, value in lines:
+            row = ctk.CTkFrame(info_frame, fg_color="transparent")
+            row.pack(fill="x", pady=3)
+            ctk.CTkLabel(row, text=label, font=("Segoe UI", 11, "bold"),
+                         text_color=TEXT_SECONDARY, width=110, anchor="w").pack(side="left")
+            ctk.CTkLabel(row, text=value, font=FONT_SMALL,
+                         text_color=TEXT_PRIMARY, anchor="w",
+                         wraplength=300).pack(side="left", padx=(8, 0))
+
+        ctk.CTkFrame(info_frame, fg_color=BORDER, height=1).pack(fill="x", pady=(12, 8))
+        ctk.CTkLabel(info_frame, text="Known Limitations",
+                     font=("Segoe UI", 11, "bold"), text_color=DANGER,
+                     anchor="w").pack(anchor="w")
+
+        for lim in limitations:
+            ctk.CTkLabel(info_frame, text=f"•  {lim}", font=FONT_SMALL,
+                         text_color=TEXT_SECONDARY, anchor="w",
+                         wraplength=400).pack(anchor="w", pady=1)
+
+        # Close button
+        ctk.CTkButton(popup, text="Close", fg_color=BG, text_color=TEXT_PRIMARY,
+                      hover_color=BORDER, border_width=1, border_color=BORDER,
+                      corner_radius=8, height=36,
+                      command=popup.destroy).pack(pady=(12, 20))
 
     def _clear_center(self):
         for w in self.center.winfo_children():
