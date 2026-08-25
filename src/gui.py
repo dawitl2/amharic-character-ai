@@ -139,25 +139,25 @@ class AmharicAIApp(ctk.CTk):
             command=self._shuffle_images)
         self.shuffle_btn.pack(fill="x", pady=(0, 16))
 
-        # --- Auto Test Section ---
+        # --- Manual Test Session Section ---
         ctk.CTkFrame(btn_area, fg_color=BORDER, height=1).pack(fill="x", pady=(0, 16))
         
-        self.auto_test_var = ctk.BooleanVar(value=False)
-        self.auto_test_switch = ctk.CTkSwitch(
-            btn_area, text="Auto-Test Mode", font=FONT_SMALL,
-            variable=self.auto_test_var, command=self._toggle_auto_test)
-        self.auto_test_switch.pack(anchor="w", pady=(0, 8))
+        self.test_session_var = ctk.BooleanVar(value=False)
+        self.test_session_switch = ctk.CTkSwitch(
+            btn_area, text="Test Session Mode", font=FONT_SMALL,
+            variable=self.test_session_var, command=self._toggle_test_session)
+        self.test_session_switch.pack(anchor="w", pady=(0, 8))
 
         self.test_count_entry = ctk.CTkEntry(
-            btn_area, placeholder_text="e.g. 50", width=80, height=28, font=FONT_SMALL)
-        self.test_count_entry.insert(0, "50")
+            btn_area, placeholder_text="e.g. 10", width=80, height=28, font=FONT_SMALL)
+        self.test_count_entry.insert(0, "10")
         self.test_count_entry.pack(anchor="w", pady=(0, 8))
         self.test_count_entry.configure(state="disabled")
 
         self.run_test_btn = ctk.CTkButton(
-            btn_area, text="▶ Run Test", font=FONT_SMALL,
+            btn_area, text="▶ Start Session", font=FONT_SMALL,
             fg_color=ACCENT, text_color="white", hover_color="#059669",
-            corner_radius=6, height=30, command=self._start_auto_test)
+            corner_radius=6, height=30, command=self._start_test_session)
         self.run_test_btn.pack(fill="x")
         self.run_test_btn.configure(state="disabled")
 
@@ -169,6 +169,21 @@ class AmharicAIApp(ctk.CTk):
         # Top-right header buttons
         header_btns = ctk.CTkFrame(self.right, fg_color="transparent")
         header_btns.place(relx=1.0, x=-16, y=16, anchor="ne")
+
+        # Session Tracker Banner (hidden by default)
+        self.session_banner = ctk.CTkFrame(self.right, fg_color=ACCENT_LIGHT, corner_radius=8,
+                                           border_width=1, border_color=ACCENT)
+        self.session_banner.place(relx=0.5, y=24, anchor="n")
+        self.session_banner.place_forget()
+        
+        self.session_label = ctk.CTkLabel(self.session_banner, text="", font=("Segoe UI", 13, "bold"), text_color=ACCENT)
+        self.session_label.pack(padx=24, pady=8)
+
+        # Session State Variables
+        self.session_active = False
+        self.session_target = 0
+        self.session_current = 0
+        self.session_correct = 0
 
         ctk.CTkButton(header_btns, text="📊 Stats", width=70, height=32,
                       font=("Segoe UI", 12, "bold"),
@@ -342,6 +357,20 @@ class AmharicAIApp(ctk.CTk):
         self._clear_center()
 
         is_low = conf < 80.0
+        is_correct = (char == true_label)
+        
+        # Session tracking hook
+        if hasattr(self, 'session_active') and self.session_active:
+            self.session_current += 1
+            if is_correct:
+                self.session_correct += 1
+                
+            self._update_session_banner()
+            
+            if self.session_current >= self.session_target:
+                self.session_active = False  # Prevent multiple triggers
+                # Give the user a moment to see the final result before showing the summary
+                self.after(1500, self._end_session)
 
         # ── Result card ──────────────────────────────────────────────────
         card = ctk.CTkFrame(self.center, fg_color=SURFACE,
@@ -525,83 +554,98 @@ class AmharicAIApp(ctk.CTk):
         if self._inference_id == inf_id:
             self.after(0, self._show_result, char, conf, logits_list, probs_list, src, lbl, image_path)
 
-    # ── Auto Test ────────────────────────────────────────────────────────────
-    def _toggle_auto_test(self):
-        state = "normal" if self.auto_test_var.get() else "disabled"
-        self.test_count_entry.configure(state=state)
-        self.run_test_btn.configure(state=state)
+    # ── Manual Test Session ──────────────────────────────────────────────────
+    def _toggle_test_session(self):
+        if self.test_session_var.get():
+            self.test_count_entry.configure(state="normal")
+            self.run_test_btn.configure(state="normal")
+        else:
+            self.test_count_entry.configure(state="disabled")
+            self.run_test_btn.configure(state="disabled")
+            self._end_session(show_results=False)
 
-    def _start_auto_test(self):
+    def _start_test_session(self):
         try:
             count = int(self.test_count_entry.get())
+            if count <= 0: return
         except ValueError:
             return
             
-        if not hasattr(self, '_inference_id'):
-            self._inference_id = 0
-        self._inference_id += 1
+        self.session_active = True
+        self.session_target = count
+        self.session_current = 0
+        self.session_correct = 0
         
-        self._show_loading()
-        self.loading_label.configure(text=f"Auto-Testing {count} images...")
-        self.run_test_btn.configure(state="disabled")
-        self.auto_test_switch.configure(state="disabled")
+        self.run_test_btn.configure(state="disabled", text="Session Running...")
+        self.test_count_entry.configure(state="disabled")
         
-        threading.Thread(target=self._run_auto_test_thread, args=(count, self._inference_id), daemon=True).start()
-
-    def _run_auto_test_thread(self, count, inf_id):
-        images = get_random_images(count)
-        correct = 0
-        total = 0
+        self._update_session_banner()
+        self.session_banner.place(relx=0.5, y=24, anchor="n")
+        self._show_empty_state()
         
-        for i, img_path in enumerate(images):
-            if self._inference_id != inf_id:
-                return # cancelled
-                
-            img = Image.open(img_path).convert("RGB")
-            tensor = self.transform(img).unsqueeze(0)
-
-            with torch.no_grad():
-                logits = self.model(tensor)
-
-            top_idx = torch.argmax(logits, dim=1).item()
-            pred_char = self.idx_to_class[top_idx]
-            true_label = img_path.parent.name
+    def _update_session_banner(self):
+        remaining = self.session_target - self.session_current
+        wrong = self.session_current - self.session_correct
+        text = f"Test Session: {self.session_current} / {self.session_target}  |  Correct: {self.session_correct}  |  Wrong: {wrong}  |  Remaining: {remaining}"
+        self.session_label.configure(text=text)
+        
+    def _end_session(self, show_results=True):
+        self.session_active = False
+        self.session_banner.place_forget()
+        self.run_test_btn.configure(state="normal", text="▶ Start Session")
+        
+        if self.test_session_var.get():
+            self.test_count_entry.configure(state="normal")
             
-            if pred_char == true_label:
-                correct += 1
-            total += 1
-            
-            if i % max(1, count // 20) == 0:
-                self.after(0, lambda v=(i+1)/count: self.progress.set(v))
-                
-        if self._inference_id == inf_id:
-            accuracy = (correct / total) * 100 if total > 0 else 0
-            self.after(0, lambda: self._show_auto_test_result(correct, total, accuracy))
+        if show_results and self.session_current > 0:
+            accuracy = (self.session_correct / self.session_current) * 100
+            self._show_session_result(self.session_correct, self.session_current, accuracy)
 
-    def _show_auto_test_result(self, correct, total, accuracy):
+    def _show_session_result(self, correct, total, accuracy):
         self._clear_center()
-        self.run_test_btn.configure(state="normal")
-        self.auto_test_switch.configure(state="normal")
 
         card = ctk.CTkFrame(self.center, fg_color=SURFACE,
-                            corner_radius=16, border_width=1,
+                            corner_radius=20, border_width=1,
                             border_color=BORDER)
         card.pack(padx=20, pady=40)
 
         inner = ctk.CTkFrame(card, fg_color="transparent")
-        inner.pack(padx=36, pady=32)
+        inner.pack(padx=48, pady=40)
         
-        ctk.CTkLabel(inner, text="Auto-Test Complete",
-                     font=FONT_HEADING, text_color=TEXT_PRIMARY).pack(pady=(0, 16))
+        # Header
+        ctk.CTkLabel(inner, text="🏆 Session Complete",
+                     font=("Segoe UI", 20, "bold"), text_color=TEXT_PRIMARY).pack(pady=(0, 24))
                      
-        ctk.CTkLabel(inner, text=f"{correct} / {total} Correct",
-                     font=("Segoe UI", 24, "bold"), text_color=TEXT_PRIMARY).pack(pady=4)
+        # Score Breakdown
+        score_frame = ctk.CTkFrame(inner, fg_color="transparent")
+        score_frame.pack(fill="x", pady=(0, 24))
+        
+        wrong = total - correct
+        
+        # Correct block
+        corr_box = ctk.CTkFrame(score_frame, fg_color="#ECFDF5", corner_radius=12, border_width=1, border_color="#10B981")
+        corr_box.pack(side="left", padx=8, expand=True, fill="both")
+        ctk.CTkLabel(corr_box, text="CORRECT", font=FONT_TINY, text_color="#10B981").pack(pady=(12, 0))
+        ctk.CTkLabel(corr_box, text=str(correct), font=("Segoe UI", 32, "bold"), text_color="#10B981").pack(pady=(0, 12))
+        
+        # Wrong block
+        wrong_box = ctk.CTkFrame(score_frame, fg_color=DANGER_LIGHT, corner_radius=12, border_width=1, border_color=DANGER)
+        wrong_box.pack(side="left", padx=8, expand=True, fill="both")
+        ctk.CTkLabel(wrong_box, text="WRONG", font=FONT_TINY, text_color=DANGER).pack(pady=(12, 0))
+        ctk.CTkLabel(wrong_box, text=str(wrong), font=("Segoe UI", 32, "bold"), text_color=DANGER).pack(pady=(0, 12))
+
+        # Accuracy Bar & Text
+        color = "#10B981" if accuracy >= 75 else DANGER
+        
+        ctk.CTkLabel(inner, text=f"Final Accuracy: {accuracy:.1f}%",
+                     font=("Segoe UI", 16, "bold"), text_color=color).pack(pady=(0, 8))
                      
-        color = "#10B981" if accuracy > 75 else DANGER
-        ctk.CTkLabel(inner, text=f"{accuracy:.1f}% Accuracy",
-                     font=("Segoe UI", 28, "bold"), text_color=color).pack(pady=(0, 24))
+        bar = ctk.CTkProgressBar(inner, width=280, height=10,
+                                 progress_color=color, fg_color=BORDER, corner_radius=5)
+        bar.set(accuracy / 100.0)
+        bar.pack(pady=(0, 32))
                      
-        ctk.CTkButton(inner, text="Close", width=100, height=36,
+        ctk.CTkButton(inner, text="Finish", width=140, height=40, font=FONT_BODY,
                       fg_color=BG, text_color=TEXT_PRIMARY,
                       hover_color=BORDER, border_width=1, border_color=BORDER,
                       command=self._show_empty_state).pack()
