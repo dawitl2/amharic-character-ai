@@ -142,10 +142,26 @@ for epoch in range(start_epoch, NUM_EPOCHS_TO_RUN + 1):
 
     if val_acc > best_val_acc:
         best_val_acc = val_acc
+        torch.save(model.state_dict(), BEST_MODEL_WEIGHTS)
+        best_msg = "⭐ NEW BEST MODEL SAVED!"
+    else:
+        best_msg = ""
 
-    print(f"{epoch:>6} | {train_acc:>9.1f}% | {val_acc:>9.1f}% | {avg_loss:>11.4f}")
+    print(f"{epoch:>6} | {train_acc:>9.1f}% | {val_acc:>9.1f}% | {avg_loss:>11.4f}  {best_msg}")
+    
+    cumulative_epochs += 1
+    
+    # Save the latest state
+    torch.save({
+        "epoch": cumulative_epochs,
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+        "best_val_acc": best_val_acc,
+    }, LATEST_CHECKPOINT)
 
 # 4. Final Test
+print("\nLoading best model for final independent test evaluation...")
+model.load_state_dict(torch.load(BEST_MODEL_WEIGHTS))
 model.eval()
 test_correct = 0
 test_total = 0
