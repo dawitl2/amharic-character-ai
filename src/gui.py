@@ -148,12 +148,12 @@ class AmharicAIApp(ctk.CTk):
             command=self._shuffle_images)
         self.shuffle_btn.pack(fill="x", pady=(0, 16))
 
-        # --- Manual Test Session Section ---
+        # --- Test Session Section ---
         ctk.CTkFrame(btn_area, fg_color=BORDER, height=1).pack(fill="x", pady=(0, 16))
         
         self.test_session_var = ctk.BooleanVar(value=False)
         self.test_session_switch = ctk.CTkSwitch(
-            btn_area, text="Test Session Mode", font=FONT_SMALL,
+            btn_area, text="Test Mode", font=FONT_SMALL,
             variable=self.test_session_var, command=self._toggle_test_session)
         self.test_session_switch.pack(anchor="w", pady=(0, 8))
 
@@ -162,6 +162,13 @@ class AmharicAIApp(ctk.CTk):
         self.test_count_entry.insert(0, "10")
         self.test_count_entry.pack(anchor="w", pady=(0, 8))
         self.test_count_entry.configure(state="disabled")
+
+        self.auto_test_var = ctk.BooleanVar(value=False)
+        self.auto_test_switch = ctk.CTkSwitch(
+            btn_area, text="Auto", font=FONT_SMALL,
+            variable=self.auto_test_var)
+        self.auto_test_switch.pack(anchor="w", pady=(0, 8))
+        self.auto_test_switch.configure(state="disabled")
 
         self.run_test_btn = ctk.CTkButton(
             btn_area, text="▶ Start Session", font=FONT_SMALL,
@@ -571,12 +578,18 @@ class AmharicAIApp(ctk.CTk):
 
     # ── Test Mode ─────────────────────────────────────────────────────────────
     def _toggle_test_session(self):
-        if self.test_session_var.get():
+        on = self.test_session_var.get()
+        if on:
             self.test_count_entry.configure(state="normal")
             self.run_test_btn.configure(state="normal")
+            self.auto_test_switch.configure(state="normal")
+            self.upload_btn.configure(state="disabled")
         else:
             self.test_count_entry.configure(state="disabled")
             self.run_test_btn.configure(state="disabled")
+            self.auto_test_switch.configure(state="disabled")
+            self.auto_test_var.set(False)
+            self.upload_btn.configure(state="normal")
             if self.session_active:
                 self._end_session(show_results=False)
 
@@ -596,6 +609,8 @@ class AmharicAIApp(ctk.CTk):
         self.run_test_btn.configure(state="disabled", text="Running...")
         self.test_count_entry.configure(state="disabled")
         self.test_session_switch.configure(state="disabled")
+        self.auto_test_switch.configure(state="disabled")
+        self.upload_btn.configure(state="disabled")
         
         self._update_session_banner()
         self.session_banner.place(relx=0.5, y=16, anchor="n")
@@ -603,6 +618,64 @@ class AmharicAIApp(ctk.CTk):
         # Auto-shuffle to give fresh images
         self._shuffle_images()
         
+        # If auto mode is on, start the automatic visual loop
+        if self.auto_test_var.get():
+            if not hasattr(self, '_inference_id'):
+                self._inference_id = 0
+            self._inference_id += 1
+            threading.Thread(
+                target=self._run_auto_test_loop,
+                args=(count, self._inference_id),
+                daemon=True
+            ).start()
+
+    def _run_auto_test_loop(self, count, inf_id):
+        """Auto mode: visually clicks through images for the user."""
+        images = get_random_images(count)
+        for img_path in images:
+            if self._inference_id != inf_id or not getattr(self, 'session_active', False):
+                return
+            
+            # Show loading
+            self.after(0, self._show_loading)
+            time.sleep(0.4)
+            if self._inference_id != inf_id: return
+            
+            self.after(0, lambda: self.loading_label.configure(text="Evaluating..."))
+            for i in range(1, 6):
+                time.sleep(0.06)
+                if self._inference_id == inf_id:
+                    self.after(0, lambda v=i/10: self.progress.set(v))
+
+            # Run inference
+            img = Image.open(img_path).convert("RGB")
+            tensor = self.transform(img).unsqueeze(0)
+
+            with torch.no_grad():
+                logits = self.model(tensor)
+
+            probs = F.softmax(logits, dim=1)
+            top_prob, top_idx = torch.max(probs, dim=1)
+            char = self.idx_to_class[top_idx.item()]
+            conf = top_prob.item() * 100
+
+            for i in range(6, 11):
+                time.sleep(0.06)
+                if self._inference_id == inf_id:
+                    self.after(0, lambda v=i/10: self.progress.set(v))
+
+            logits_list = [round(float(x), 2) for x in logits.numpy()[0]]
+            probs_list = [round(float(x), 3) for x in probs.numpy()[0]]
+            src = os.path.basename(img_path)
+            lbl = img_path.parent.name
+            
+            time.sleep(0.2)
+            if self._inference_id == inf_id:
+                self.after(0, self._show_result, char, conf, logits_list, probs_list, src, lbl, img_path)
+            
+            # Pause so user can see each result
+            time.sleep(1.5)
+
     def _track_session_result(self, predicted, true_label):
         """Called after every prediction while session is active."""
         if not self.session_active:
@@ -618,7 +691,7 @@ class AmharicAIApp(ctk.CTk):
         self._update_session_banner()
         
         if self.session_current >= self.session_target:
-            # Let user see the last result for a beat, then show summary
+            self.session_active = False  # prevent double-fire
             self.after(1200, self._end_session)
 
     def _update_session_banner(self):
@@ -632,7 +705,7 @@ class AmharicAIApp(ctk.CTk):
         )
         
     def _end_session(self, show_results=True):
-        was_active = self.session_active
+        was_active = self.session_active or True  # may already be False from track
         done = self.session_current
         correct = self.session_correct
         
@@ -640,11 +713,15 @@ class AmharicAIApp(ctk.CTk):
         self.session_banner.place_forget()
         self.run_test_btn.configure(state="normal", text="▶ Start Session")
         self.test_session_switch.configure(state="normal")
+        self.auto_test_switch.configure(state="normal" if self.test_session_var.get() else "disabled")
         
         if self.test_session_var.get():
             self.test_count_entry.configure(state="normal")
+            self.upload_btn.configure(state="disabled")
+        else:
+            self.upload_btn.configure(state="normal")
             
-        if show_results and was_active and done > 0:
+        if show_results and done > 0:
             accuracy = (correct / done) * 100
             self._show_session_result(correct, done, accuracy)
 
