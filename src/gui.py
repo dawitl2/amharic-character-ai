@@ -137,7 +137,29 @@ class AmharicAIApp(ctk.CTk):
             hover_color=BORDER, border_width=1, border_color=BORDER,
             corner_radius=8, height=40,
             command=self._shuffle_images)
-        self.shuffle_btn.pack(fill="x")
+        self.shuffle_btn.pack(fill="x", pady=(0, 16))
+
+        # --- Auto Test Section ---
+        ctk.CTkFrame(btn_area, fg_color=BORDER, height=1).pack(fill="x", pady=(0, 16))
+        
+        self.auto_test_var = ctk.BooleanVar(value=False)
+        self.auto_test_switch = ctk.CTkSwitch(
+            btn_area, text="Auto-Test Mode", font=FONT_SMALL,
+            variable=self.auto_test_var, command=self._toggle_auto_test)
+        self.auto_test_switch.pack(anchor="w", pady=(0, 8))
+
+        self.test_count_entry = ctk.CTkEntry(
+            btn_area, placeholder_text="e.g. 50", width=80, height=28, font=FONT_SMALL)
+        self.test_count_entry.insert(0, "50")
+        self.test_count_entry.pack(anchor="w", pady=(0, 8))
+        self.test_count_entry.configure(state="disabled")
+
+        self.run_test_btn = ctk.CTkButton(
+            btn_area, text="▶ Run Test", font=FONT_SMALL,
+            fg_color=ACCENT, text_color="white", hover_color="#059669",
+            corner_radius=6, height=30, command=self._start_auto_test)
+        self.run_test_btn.pack(fill="x")
+        self.run_test_btn.configure(state="disabled")
 
     # ── Right Panel ──────────────────────────────────────────────────────────
     def _build_right_panel(self):
@@ -502,6 +524,87 @@ class AmharicAIApp(ctk.CTk):
         time.sleep(0.2)
         if self._inference_id == inf_id:
             self.after(0, self._show_result, char, conf, logits_list, probs_list, src, lbl, image_path)
+
+    # ── Auto Test ────────────────────────────────────────────────────────────
+    def _toggle_auto_test(self):
+        state = "normal" if self.auto_test_var.get() else "disabled"
+        self.test_count_entry.configure(state=state)
+        self.run_test_btn.configure(state=state)
+
+    def _start_auto_test(self):
+        try:
+            count = int(self.test_count_entry.get())
+        except ValueError:
+            return
+            
+        if not hasattr(self, '_inference_id'):
+            self._inference_id = 0
+        self._inference_id += 1
+        
+        self._show_loading()
+        self.loading_label.configure(text=f"Auto-Testing {count} images...")
+        self.run_test_btn.configure(state="disabled")
+        self.auto_test_switch.configure(state="disabled")
+        
+        threading.Thread(target=self._run_auto_test_thread, args=(count, self._inference_id), daemon=True).start()
+
+    def _run_auto_test_thread(self, count, inf_id):
+        images = get_random_images(count)
+        correct = 0
+        total = 0
+        
+        for i, img_path in enumerate(images):
+            if self._inference_id != inf_id:
+                return # cancelled
+                
+            img = Image.open(img_path).convert("RGB")
+            tensor = self.transform(img).unsqueeze(0)
+
+            with torch.no_grad():
+                logits = self.model(tensor)
+
+            top_idx = torch.argmax(logits, dim=1).item()
+            pred_char = self.idx_to_class[top_idx]
+            true_label = img_path.parent.name
+            
+            if pred_char == true_label:
+                correct += 1
+            total += 1
+            
+            if i % max(1, count // 20) == 0:
+                self.after(0, lambda v=(i+1)/count: self.progress.set(v))
+                
+        if self._inference_id == inf_id:
+            accuracy = (correct / total) * 100 if total > 0 else 0
+            self.after(0, lambda: self._show_auto_test_result(correct, total, accuracy))
+
+    def _show_auto_test_result(self, correct, total, accuracy):
+        self._clear_center()
+        self.run_test_btn.configure(state="normal")
+        self.auto_test_switch.configure(state="normal")
+
+        card = ctk.CTkFrame(self.center, fg_color=SURFACE,
+                            corner_radius=16, border_width=1,
+                            border_color=BORDER)
+        card.pack(padx=20, pady=40)
+
+        inner = ctk.CTkFrame(card, fg_color="transparent")
+        inner.pack(padx=36, pady=32)
+        
+        ctk.CTkLabel(inner, text="Auto-Test Complete",
+                     font=FONT_HEADING, text_color=TEXT_PRIMARY).pack(pady=(0, 16))
+                     
+        ctk.CTkLabel(inner, text=f"{correct} / {total} Correct",
+                     font=("Segoe UI", 24, "bold"), text_color=TEXT_PRIMARY).pack(pady=4)
+                     
+        color = "#10B981" if accuracy > 75 else DANGER
+        ctk.CTkLabel(inner, text=f"{accuracy:.1f}% Accuracy",
+                     font=("Segoe UI", 28, "bold"), text_color=color).pack(pady=(0, 24))
+                     
+        ctk.CTkButton(inner, text="Close", width=100, height=36,
+                      fg_color=BG, text_color=TEXT_PRIMARY,
+                      hover_color=BORDER, border_width=1, border_color=BORDER,
+                      command=self._show_empty_state).pack()
 
 
 if __name__ == "__main__":
