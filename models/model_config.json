@@ -1,0 +1,16 @@
+{
+    "image_width": 64,
+    "image_height": 64,
+    "channels": 1,
+    "architecture": "SimpleModel (Flatten -> Linear)",
+    "classes": [
+        "ሀ",
+        "ለ",
+        "መ"
+    ],
+    "class_to_idx": {
+        "ሀ": 0,
+        "ለ": 1,
+        "መ": 2
+    }
+}
