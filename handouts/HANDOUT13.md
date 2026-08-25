@@ -17,15 +17,30 @@ src/
 
 While our command-line script (`predict.py`) works perfectly for developers, it is not user-friendly. Real users don't type `python predict.py data/ሀ/synthetic_001.png` into a terminal.
 
-We rebuilt `gui.py` using `customtkinter`, a modern UI library that provides a polished, light-mode, ChatGPT-style chat interface.
+We rebuilt `gui.py` from the ground up using `customtkinter` with a clean, minimalistic two-panel layout inspired by modern 2026 design language.
 
-### Features
-1. **Curated Selection**: The assistant begins the conversation by dynamically pulling exactly 5 random images from our vast `data/` folder.
-2. **Progressive Interactive Inference**: It acts as a chat. When you select an image, it appears as a "User Message". The model then progressively analyzes the image ("Analyzing features...", "Applying Softmax...") before giving the final result.
-3. **Advanced Visuals**: The UI includes chat bubbles, avatars (🤖 and 👤), and dynamic coloring (e.g., highlighting warnings in red if confidence is below 80%).
-4. **Developer Transparency**: Embedded right in the chat response is a "Developer Logs" section showing the source file, actual ground truth label, raw logits, and exact softmax probabilities.
+### Layout
+The window is split into two panels:
 
-You can launch this interface right now by running:
+**Left Panel — Image Selector**
+- Displays 5 randomly chosen sample images as clean, labeled cards.
+- A **Shuffle** button at the bottom instantly replaces them with a new random set — the panel itself never moves or changes shape.
+
+**Right Panel — Results Display**
+- Starts with a subtle "No image selected" empty state.
+- When a sample is clicked, a smooth progress bar animates across two stages ("Analyzing" → "Running model").
+- The result appears as a centered card containing:
+  - A **status pill** (green "High confidence" or red "Low confidence").
+  - The **predicted Amharic character** displayed prominently.
+  - A separate **confidence percentage** with a matching colored progress bar.
+  - A **Developer Details** section at the bottom with source file, ground-truth label, raw logits, and softmax probabilities.
+
+### Design Choices
+- **No chatbot icons or robot emojis.** The interface is purely typographic.
+- **Segoe UI / Consolas** fonts for a native Windows feel.
+- **Color palette**: off-white background, white surface cards, green accent (`#0EA47A`), red for warnings (`#EF4444`).
+
+You can launch the interface by running:
 ```bash
-python src/gui.py
+.venv\Scripts\python.exe src/gui.py
 ```
