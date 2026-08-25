@@ -400,13 +400,30 @@ class AmharicAIApp(ctk.CTk):
         # Thin line
         ctk.CTkFrame(inner, fg_color=BORDER, height=1).pack(fill="x", pady=(0, 16))
 
+        # Outcome summary
+        ctk.CTkLabel(inner, text="Outcome", font=("Segoe UI", 11, "bold"),
+                     text_color=TEXT_SECONDARY, anchor="w").pack(anchor="w")
+                     
+        is_correct = (char == true_label)
+        result_text = "CORRECT" if is_correct else "WRONG"
+        result_color = "#10B981" if is_correct else DANGER
+
+        outcome = (
+            f"Prediction:     {char}\n"
+            f"Correct Answer: {true_label}\n"
+            f"Confidence:     {conf:.1f}%\n"
+            f"Result:         {result_text}"
+        )
+        ctk.CTkLabel(inner, text=outcome, font=FONT_MONO,
+                     text_color=result_color, justify="left",
+                     anchor="w").pack(anchor="w", pady=(6, 12))
+
         # Developer details
         ctk.CTkLabel(inner, text="Developer Details", font=("Segoe UI", 11, "bold"),
                      text_color=TEXT_SECONDARY, anchor="w").pack(anchor="w")
 
         details = (
             f"Source:   {source_file}\n"
-            f"Label:    {true_label}\n"
             f"Logits:   {logits_list}\n"
             f"Probs:    {probs_list}"
         )
@@ -441,18 +458,26 @@ class AmharicAIApp(ctk.CTk):
         self._show_empty_state()
 
     def _on_select(self, path):
+        # Cancel any previous thread's UI updates by incrementing ID
+        if not hasattr(self, '_inference_id'):
+            self._inference_id = 0
+        self._inference_id += 1
+        
         self._show_loading()
-        threading.Thread(target=self._run_inference, args=(path,), daemon=True).start()
+        threading.Thread(target=self._run_inference, args=(path, self._inference_id), daemon=True).start()
 
-    def _run_inference(self, image_path):
+    def _run_inference(self, image_path, inf_id):
         # Smooth progress animation
         for i in range(1, 6):
             time.sleep(0.15)
-            self.after(0, lambda v=i/10: self.progress.set(v))
+            if self._inference_id == inf_id:
+                self.after(0, lambda v=i/10: self.progress.set(v))
 
-        self.after(0, lambda: self.loading_label.configure(text="Running model"))
+        if self._inference_id == inf_id:
+            self.after(0, lambda: self.loading_label.configure(text="Running model"))
 
-        img = Image.open(image_path)
+        # ALWAYS convert to RGB before transform to perfectly match training ImageFolder
+        img = Image.open(image_path).convert("RGB")
         tensor = self.transform(img).unsqueeze(0)
 
         with torch.no_grad():
@@ -466,7 +491,8 @@ class AmharicAIApp(ctk.CTk):
 
         for i in range(6, 11):
             time.sleep(0.1)
-            self.after(0, lambda v=i/10: self.progress.set(v))
+            if self._inference_id == inf_id:
+                self.after(0, lambda v=i/10: self.progress.set(v))
 
         logits_list = [round(float(x), 2) for x in logits.numpy()[0]]
         probs_list = [round(float(x), 3) for x in probs.numpy()[0]]
@@ -474,7 +500,8 @@ class AmharicAIApp(ctk.CTk):
         lbl = image_path.parent.name
 
         time.sleep(0.2)
-        self.after(0, self._show_result, char, conf, logits_list, probs_list, src, lbl, image_path)
+        if self._inference_id == inf_id:
+            self.after(0, self._show_result, char, conf, logits_list, probs_list, src, lbl, image_path)
 
 
 if __name__ == "__main__":
