@@ -349,7 +349,7 @@ class AmharicAIApp(ctk.CTk):
                 corner_radius=10,
                 width=64, height=64,
                 command=lambda p=path: self._on_select(p))
-            card.pack(side="left", padx=6, pady=3)
+            card.pack(pady=4)
 
         self._show_empty_state()
 
