@@ -267,30 +267,40 @@ class AmharicAIApp(ctk.CTk):
         pair_frame = ctk.CTkFrame(inner, fg_color="transparent")
         pair_frame.pack(pady=(0, 8))
 
-        # Selected image (enlarged)
+        # Left column: Selected Image
+        left_col = ctk.CTkFrame(pair_frame, fg_color="transparent")
+        left_col.pack(side="left", padx=(0, 24))
+
+        ctk.CTkLabel(left_col, text="Selected Image",
+                     font=("Segoe UI", 12, "bold"),
+                     text_color=TEXT_SECONDARY).pack(pady=(0, 8))
+
         sel_img = Image.open(image_path).convert("RGB").resize((96, 96), Image.Resampling.LANCZOS)
         self._result_img_ref = ctk.CTkImage(light_image=sel_img, size=(96, 96))
 
-        img_card = ctk.CTkFrame(pair_frame, fg_color=BG, corner_radius=12,
+        img_card = ctk.CTkFrame(left_col, fg_color=BG, corner_radius=12,
                                 border_width=1, border_color=BORDER)
-        img_card.pack(side="left", padx=(0, 24))
+        img_card.pack()
         ctk.CTkLabel(img_card, image=self._result_img_ref, text="").pack(padx=12, pady=12)
-        ctk.CTkLabel(img_card, text="Selected", font=FONT_TINY,
-                     text_color=TEXT_MUTED).pack(pady=(0, 8))
 
         # Arrow
         ctk.CTkLabel(pair_frame, text="→", font=("Segoe UI", 28),
-                     text_color=TEXT_MUTED).pack(side="left", padx=(0, 24))
+                     text_color=TEXT_MUTED).pack(side="left", padx=(0, 24), pady=(20, 0))
 
-        # Predicted character
-        pred_card = ctk.CTkFrame(pair_frame, fg_color=ACCENT_LIGHT if not is_low else DANGER_LIGHT,
+        # Right column: Prediction
+        right_col = ctk.CTkFrame(pair_frame, fg_color="transparent")
+        right_col.pack(side="left")
+
+        ctk.CTkLabel(right_col, text="Prediction",
+                     font=("Segoe UI", 12, "bold"),
+                     text_color=TEXT_SECONDARY).pack(pady=(0, 8))
+
+        pred_card = ctk.CTkFrame(right_col, fg_color=ACCENT_LIGHT if not is_low else DANGER_LIGHT,
                                   corner_radius=12, border_width=1,
                                   border_color=ACCENT if not is_low else DANGER)
-        pred_card.pack(side="left")
+        pred_card.pack()
         ctk.CTkLabel(pred_card, text=char, font=FONT_CHAR,
-                     text_color=TEXT_PRIMARY).pack(padx=20, pady=(12, 4))
-        ctk.CTkLabel(pred_card, text="Prediction", font=FONT_TINY,
-                     text_color=TEXT_MUTED).pack(pady=(0, 10))
+                     text_color=TEXT_PRIMARY).pack(padx=24, pady=16)
 
         # Thin line
         ctk.CTkFrame(inner, fg_color=BORDER, height=1).pack(fill="x", pady=(12, 16))
