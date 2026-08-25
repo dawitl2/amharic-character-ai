@@ -44,3 +44,17 @@ You can launch the interface by running:
 ```bash
 .venv\Scripts\python.exe src/gui.py
 ```
+
+---
+
+# Continuous Training Pipeline
+
+In addition to the GUI, we have upgraded our training infrastructure (`src/train.py`) to support **continuous training**. 
+
+Instead of starting from random weights every time and throwing away previous progress, the training script now:
+1. **Resumes from Checkpoints**: It automatically detects `latest_checkpoint.pth` and loads both the model weights and the optimizer state so training perfectly continues where it left off.
+2. **Saves the Best Model**: It actively monitors Validation Accuracy. Whenever accuracy hits a new high, it saves `best_model_weights.pth`. It will *never* overwrite this best model with a worse final-epoch model.
+3. **Cumulative Tracking**: It tracks total cumulative epochs (e.g., 100 + 100 = 200) inside `model_config.json`, which the GUI's **Stats** panel now displays.
+4. **Safety Mechanisms**: Before resuming, it cross-checks the architecture and class mappings. If you add a new character class, it will refuse to load incompatible old weights and will instead warn you.
+
+Because of this, you can safely kill the training script at any time, or run it repeatedly, and your AI will strictly continue getting smarter.
