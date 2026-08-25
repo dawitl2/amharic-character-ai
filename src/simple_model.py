@@ -23,18 +23,19 @@ class SimpleModel(nn.Module):
         return x
 
 
-model = SimpleModel()
+if __name__ == "__main__":
+    model = SimpleModel()
 
-fake_images = torch.randn(4, 1, 64, 64)
+    fake_images = torch.randn(4, 1, 64, 64)
 
-outputs = model(fake_images)
+    outputs = model(fake_images)
 
-predictions = torch.argmax(outputs, dim=1)
+    predictions = torch.argmax(outputs, dim=1)
 
-print("Raw outputs:")
-print(outputs)
+    print("Raw outputs:")
+    print(outputs)
 
-print()
+    print()
 
-print("Predicted class numbers:")
-print(predictions)
+    print("Predicted class numbers:")
+    print(predictions)
