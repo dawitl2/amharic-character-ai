@@ -248,18 +248,14 @@ class AmharicAIApp(ctk.CTk):
 
             card = ctk.CTkButton(
                 self.card_container,
-                text=f"  {path.parent.name}  /  {path.name}",
+                text="",
                 image=ctk_img,
-                compound="left",
-                anchor="w",
-                font=FONT_SMALL,
-                text_color=TEXT_SECONDARY,
                 fg_color="transparent",
                 hover_color=ACCENT_LIGHT,
                 corner_radius=10,
-                height=56,
+                width=64, height=64,
                 command=lambda p=path: self._on_select(p))
-            card.pack(fill="x", pady=3)
+            card.pack(side="left", padx=6, pady=3)
 
         self._show_empty_state()
 
