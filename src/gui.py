@@ -65,7 +65,7 @@ class AmharicAIApp(ctk.CTk):
         self._load_model()
 
         # Two‑column grid: left selector | right results
-        self.grid_columnconfigure(0, weight=0, minsize=340)
+        self.grid_columnconfigure(0, weight=0, minsize=200)
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
@@ -97,7 +97,7 @@ class AmharicAIApp(ctk.CTk):
                                   border_width=1, border_color=BORDER)
         self.left.grid(row=0, column=0, sticky="nsew")
         self.left.grid_propagate(False)
-        self.left.configure(width=340)
+        self.left.configure(width=200)
 
         # Title area
         title_area = ctk.CTkFrame(self.left, fg_color="transparent")
@@ -167,7 +167,7 @@ class AmharicAIApp(ctk.CTk):
         self.progress.set(0)
         self.progress.pack()
 
-    def _show_result(self, char, conf, logits_list, probs_list, source_file, true_label):
+    def _show_result(self, char, conf, logits_list, probs_list, source_file, true_label, image_path):
         self._clear_center()
 
         is_low = conf < 80.0
@@ -191,15 +191,37 @@ class AmharicAIApp(ctk.CTk):
                             fg_color=pill_bg, corner_radius=10, height=22)
         pill.pack(pady=(0, 16))
 
-        # Predicted character – large
-        ctk.CTkLabel(inner, text=char, font=FONT_CHAR,
-                     text_color=TEXT_PRIMARY).pack()
+        # ── Side-by-side: selected image | predicted character ───────
+        pair_frame = ctk.CTkFrame(inner, fg_color="transparent")
+        pair_frame.pack(pady=(0, 8))
 
-        ctk.CTkLabel(inner, text="Predicted Character",
-                     font=FONT_SMALL, text_color=TEXT_MUTED).pack(pady=(2, 20))
+        # Selected image (enlarged)
+        sel_img = Image.open(image_path).convert("RGB").resize((96, 96), Image.Resampling.LANCZOS)
+        self._result_img_ref = ctk.CTkImage(light_image=sel_img, size=(96, 96))
+
+        img_card = ctk.CTkFrame(pair_frame, fg_color=BG, corner_radius=12,
+                                border_width=1, border_color=BORDER)
+        img_card.pack(side="left", padx=(0, 24))
+        ctk.CTkLabel(img_card, image=self._result_img_ref, text="").pack(padx=12, pady=12)
+        ctk.CTkLabel(img_card, text="Selected", font=FONT_TINY,
+                     text_color=TEXT_MUTED).pack(pady=(0, 8))
+
+        # Arrow
+        ctk.CTkLabel(pair_frame, text="→", font=("Segoe UI", 28),
+                     text_color=TEXT_MUTED).pack(side="left", padx=(0, 24))
+
+        # Predicted character
+        pred_card = ctk.CTkFrame(pair_frame, fg_color=ACCENT_LIGHT if not is_low else DANGER_LIGHT,
+                                  corner_radius=12, border_width=1,
+                                  border_color=ACCENT if not is_low else DANGER)
+        pred_card.pack(side="left")
+        ctk.CTkLabel(pred_card, text=char, font=FONT_CHAR,
+                     text_color=TEXT_PRIMARY).pack(padx=20, pady=(12, 4))
+        ctk.CTkLabel(pred_card, text="Prediction", font=FONT_TINY,
+                     text_color=TEXT_MUTED).pack(pady=(0, 10))
 
         # Thin line
-        ctk.CTkFrame(inner, fg_color=BORDER, height=1).pack(fill="x", pady=(0, 20))
+        ctk.CTkFrame(inner, fg_color=BORDER, height=1).pack(fill="x", pady=(12, 16))
 
         # Confidence section
         conf_color = DANGER if is_low else ACCENT
@@ -214,7 +236,7 @@ class AmharicAIApp(ctk.CTk):
         bar.pack(pady=(6, 4))
 
         ctk.CTkLabel(inner, text="Model Confidence",
-                     font=FONT_SMALL, text_color=TEXT_MUTED).pack(pady=(0, 20))
+                     font=FONT_SMALL, text_color=TEXT_MUTED).pack(pady=(0, 16))
 
         # Thin line
         ctk.CTkFrame(inner, fg_color=BORDER, height=1).pack(fill="x", pady=(0, 16))
@@ -293,7 +315,7 @@ class AmharicAIApp(ctk.CTk):
         lbl = image_path.parent.name
 
         time.sleep(0.2)
-        self.after(0, self._show_result, char, conf, logits_list, probs_list, src, lbl)
+        self.after(0, self._show_result, char, conf, logits_list, probs_list, src, lbl, image_path)
 
 
 if __name__ == "__main__":
