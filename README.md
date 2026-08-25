@@ -49,6 +49,14 @@ The project will gradually expand after the basic learning pipeline works correc
 
 ---
 
+## Interactive Interface
+
+As part of Phase 21, the project now features a modern, responsive Graphical User Interface (GUI) built with `customtkinter`. The interface allows users to sample images from the dataset and run real-time inference, displaying predicted characters alongside model confidence percentages and raw developer metrics.
+
+![Amharic OCR Interface](image.png)
+
+---
+
 # Why This Project Exists
 
 Modern AI tools make it possible to build applications without deeply understanding the machine-learning systems behind them.
