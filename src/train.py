@@ -178,22 +178,25 @@ print()
 print(f"Best Validation Accuracy: {best_val_acc:.2f}%")
 print(f"Final Test Accuracy:      {test_acc:.2f}%")
 
-# 5. Save Model Weights (overwrite the old ones so the GUI uses the new brain)
+# 5. Save Configuration for GUI
 os.makedirs("models", exist_ok=True)
 
-torch.save(model.state_dict(), "models/simple_model_weights.pth")
-print("Saved weights to models/simple_model_weights.pth")
+# Also update the legacy weights path for older scripts that might expect it
+torch.save(model.state_dict(), LEGACY_WEIGHTS)
+print(f"Backed up final model to {LEGACY_WEIGHTS}")
 
 config = {
     "architecture": "SimpleModel (Flatten -> Linear)",
     "image_width": 64,
     "image_height": 64,
     "class_to_idx": dataset.class_to_idx,
-    "epochs_trained": NUM_EPOCHS,
+    "epochs_trained": cumulative_epochs,
+    "best_val_accuracy": round(best_val_acc, 2),
     "test_accuracy": round(test_acc, 2)
 }
-with open("models/model_config.json", "w", encoding="utf-8") as f:
+with open(CONFIG_PATH, "w", encoding="utf-8") as f:
     json.dump(config, f, ensure_ascii=False, indent=2)
-print("Saved config to models/model_config.json")
+    
+print(f"Saved config to {CONFIG_PATH}")
 print()
-print("Done! The GUI will now use the updated model.")
+print("Done! The GUI and pipeline are now fully updated.")
