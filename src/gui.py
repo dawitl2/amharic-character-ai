@@ -19,27 +19,36 @@ from simple_model import SimpleModel
 ctk.set_appearance_mode("Light")
 
 # ─── Color Palette ───────────────────────────────────────────────────────────
-BG           = "#FAFAFA"
-SURFACE      = "#FFFFFF"
-BORDER       = "#E8E8E8"
-TEXT_PRIMARY  = "#1A1A1A"
-TEXT_SECONDARY= "#6B6B6B"
-TEXT_MUTED    = "#9CA3AF"
-ACCENT        = "#0EA47A"
-ACCENT_HOVER  = "#0C8A66"
-ACCENT_LIGHT  = "#ECFDF5"
-DANGER        = "#EF4444"
-DANGER_LIGHT  = "#FEF2F2"
+BG            = "#F4F7FB"
+SURFACE       = "#FFFFFF"
+SURFACE_SOFT  = "#F8FAFC"
+BORDER        = "#E2E8F0"
+TEXT_PRIMARY  = "#0F172A"
+TEXT_SECONDARY= "#475569"
+TEXT_MUTED    = "#94A3B8"
+ACCENT        = "#0F9F72"
+ACCENT_HOVER  = "#0B815C"
+ACCENT_LIGHT  = "#E8F8F2"
+ACCENT_TINT   = "#D5F2E7"
+SIDEBAR       = "#101A2E"
+SIDEBAR_SOFT  = "#17233A"
+SIDEBAR_BORDER= "#24324A"
+SIDEBAR_TEXT  = "#F8FAFC"
+SIDEBAR_MUTED = "#93A4BD"
+DANGER        = "#E5484D"
+DANGER_LIGHT  = "#FFF0F0"
+SUCCESS       = "#0F9F72"
+SUCCESS_LIGHT = "#E8F8F2"
 
 # ─── Fonts ───────────────────────────────────────────────────────────────────
-FONT_TITLE    = ("Segoe UI", 22, "bold")
-FONT_SUBTITLE = ("Segoe UI", 13)
-FONT_HEADING  = ("Segoe UI", 16, "bold")
+FONT_TITLE    = ("Segoe UI", 24, "bold")
+FONT_SUBTITLE = ("Segoe UI", 14)
+FONT_HEADING  = ("Segoe UI", 17, "bold")
 FONT_BODY     = ("Segoe UI", 13)
 FONT_SMALL    = ("Segoe UI", 11)
-FONT_TINY     = ("Segoe UI", 10)
-FONT_CHAR     = ("Segoe UI", 64, "bold")
-FONT_CONF     = ("Segoe UI", 28, "bold")
+FONT_TINY     = ("Segoe UI", 10, "bold")
+FONT_CHAR     = ("Segoe UI", 72, "bold")
+FONT_CONF     = ("Segoe UI", 32, "bold")
 FONT_MONO     = ("Consolas", 10)
 
 
@@ -58,15 +67,15 @@ class AmharicAIApp(ctk.CTk):
         super().__init__()
 
         self.title("Amharic Character AI")
-        self.geometry("960x640")
-        self.minsize(860, 580)
+        self.geometry("1180x760")
+        self.minsize(1020, 700)
         self.configure(fg_color=BG)
 
         # Load model once
         self._load_model()
 
         # Two‑column grid: left selector | right results
-        self.grid_columnconfigure(0, weight=0, minsize=200)
+        self.grid_columnconfigure(0, weight=0, minsize=310)
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
@@ -102,94 +111,135 @@ class AmharicAIApp(ctk.CTk):
 
     # ── Left Panel ───────────────────────────────────────────────────────────
     def _build_left_panel(self):
-        self.left = ctk.CTkFrame(self, fg_color=SURFACE, corner_radius=0,
-                                  border_width=1, border_color=BORDER)
+        self.left = ctk.CTkFrame(self, fg_color=SIDEBAR, corner_radius=0)
         self.left.grid(row=0, column=0, sticky="nsew")
         self.left.grid_propagate(False)
-        self.left.configure(width=200)
+        self.left.configure(width=310)
 
-        # Title area
+        # Product identity
         title_area = ctk.CTkFrame(self.left, fg_color="transparent")
-        title_area.pack(fill="x", padx=24, pady=(28, 0))
+        title_area.pack(fill="x", padx=26, pady=(24, 0))
 
-        ctk.CTkLabel(title_area, text="Select an Image",
-                     font=FONT_HEADING, text_color=TEXT_PRIMARY,
+        mark = ctk.CTkFrame(title_area, width=42, height=42,
+                            fg_color=ACCENT, corner_radius=12)
+        mark.pack(side="left")
+        mark.pack_propagate(False)
+        ctk.CTkLabel(mark, text="ሀ", font=("Segoe UI", 22, "bold"),
+                     text_color="white").place(relx=0.5, rely=0.5, anchor="center")
+
+        brand_copy = ctk.CTkFrame(title_area, fg_color="transparent")
+        brand_copy.pack(side="left", padx=(12, 0))
+        ctk.CTkLabel(brand_copy, text="Fidel Vision",
+                     font=("Segoe UI", 17, "bold"), text_color=SIDEBAR_TEXT,
                      anchor="w").pack(anchor="w")
-        ctk.CTkLabel(title_area,
-                     text="5 random samples from the dataset.\nClick one to run inference.",
-                     font=FONT_SMALL, text_color=TEXT_MUTED,
-                     anchor="w", justify="left").pack(anchor="w", pady=(4, 0))
+        ctk.CTkLabel(brand_copy, text="AMHARIC CHARACTER AI",
+                     font=("Segoe UI", 9, "bold"), text_color=ACCENT,
+                     anchor="w").pack(anchor="w", pady=(1, 0))
 
-        # Thin separator
-        sep = ctk.CTkFrame(self.left, fg_color=BORDER, height=1)
-        sep.pack(fill="x", padx=24, pady=(20, 0))
+        ctk.CTkFrame(self.left, fg_color=SIDEBAR_BORDER, height=1).pack(
+            fill="x", padx=26, pady=(20, 18))
+
+        intro = ctk.CTkFrame(self.left, fg_color="transparent")
+        intro.pack(fill="x", padx=26)
+        ctk.CTkLabel(intro, text="Choose a sample",
+                     font=FONT_HEADING, text_color=SIDEBAR_TEXT,
+                     anchor="w").pack(anchor="w")
+        ctk.CTkLabel(intro,
+                     text="Five fresh images are ready. Select one to begin.",
+                     font=FONT_SMALL, text_color=SIDEBAR_MUTED,
+                     anchor="w", justify="left").pack(anchor="w", pady=(3, 0))
 
         # Image grid – 5 images arranged vertically as cards
         self.card_container = ctk.CTkFrame(self.left, fg_color="transparent")
-        self.card_container.pack(fill="both", expand=True, padx=24, pady=(16, 8))
+        self.card_container.pack(fill="both", expand=True, padx=24, pady=(10, 7))
 
-        # Shuffle button pinned to bottom
-        btn_area = ctk.CTkFrame(self.left, fg_color="transparent")
-        btn_area.pack(fill="x", padx=24, pady=(0, 24))
+        # Compact action tray stays visible at supported window sizes.
+        btn_area = ctk.CTkFrame(self.left, fg_color=SIDEBAR_SOFT,
+                                corner_radius=16, border_width=1,
+                                border_color=SIDEBAR_BORDER)
+        btn_area.pack(fill="x", padx=20, pady=(0, 14))
 
         self.upload_btn = ctk.CTkButton(
-            btn_area, text="📁  Upload Image", font=FONT_BODY,
-            fg_color=BG, text_color=TEXT_PRIMARY,
-            hover_color=BORDER, border_width=1, border_color=BORDER,
-            corner_radius=8, height=40,
+            btn_area, text="Upload an image", font=("Segoe UI", 12, "bold"),
+            fg_color=ACCENT, text_color="white",
+            hover_color=ACCENT_HOVER, border_width=0,
+            corner_radius=10, height=36,
             command=self._upload_image)
-        self.upload_btn.pack(fill="x", pady=(0, 8))
+        self.upload_btn.pack(fill="x", padx=12, pady=(10, 7))
 
         self.shuffle_btn = ctk.CTkButton(
-            btn_area, text="↻  Shuffle", font=FONT_BODY,
-            fg_color=BG, text_color=TEXT_PRIMARY,
-            hover_color=BORDER, border_width=1, border_color=BORDER,
-            corner_radius=8, height=40,
+            btn_area, text="Shuffle samples", font=("Segoe UI", 12, "bold"),
+            fg_color="transparent", text_color=SIDEBAR_TEXT,
+            hover_color=SIDEBAR_BORDER, border_width=1,
+            border_color=SIDEBAR_BORDER, corner_radius=10, height=34,
             command=self._shuffle_images)
-        self.shuffle_btn.pack(fill="x", pady=(0, 16))
+        self.shuffle_btn.pack(fill="x", padx=12, pady=(0, 10))
 
-        # --- Test Session Section ---
-        ctk.CTkFrame(btn_area, fg_color=BORDER, height=1).pack(fill="x", pady=(0, 16))
+        ctk.CTkFrame(btn_area, fg_color=SIDEBAR_BORDER, height=1).pack(
+            fill="x", padx=12, pady=(0, 8))
         
         self.test_session_var = ctk.BooleanVar(value=False)
         self.test_session_switch = ctk.CTkSwitch(
-            btn_area, text="Test Mode", font=FONT_SMALL,
+            btn_area, text="Evaluation session", font=("Segoe UI", 11, "bold"),
+            text_color=SIDEBAR_TEXT, progress_color=ACCENT,
+            button_color=SURFACE, button_hover_color=ACCENT_TINT,
             variable=self.test_session_var, command=self._toggle_test_session)
-        self.test_session_switch.pack(anchor="w", pady=(0, 8))
+        self.test_session_switch.pack(anchor="w", padx=12, pady=(0, 7))
+
+        test_options = ctk.CTkFrame(btn_area, fg_color="transparent")
+        self.test_options = test_options
 
         self.test_count_entry = ctk.CTkEntry(
-            btn_area, placeholder_text="e.g. 10", width=80, height=28, font=FONT_SMALL)
+            test_options, placeholder_text="Count", width=72, height=28,
+            font=FONT_SMALL, fg_color=SIDEBAR, text_color=SIDEBAR_TEXT,
+            border_color=SIDEBAR_BORDER, corner_radius=8)
         self.test_count_entry.insert(0, "10")
-        self.test_count_entry.pack(anchor="w", pady=(0, 8))
+        self.test_count_entry.pack(side="left")
         self.test_count_entry.configure(state="disabled")
 
         self.auto_test_var = ctk.BooleanVar(value=False)
         self.auto_test_switch = ctk.CTkSwitch(
-            btn_area, text="Auto", font=FONT_SMALL,
-            variable=self.auto_test_var)
-        self.auto_test_switch.pack(anchor="w", pady=(0, 8))
+            test_options, text="Auto-run", font=FONT_SMALL,
+            text_color=SIDEBAR_MUTED, progress_color=ACCENT,
+            button_color=SURFACE, button_hover_color=ACCENT_TINT,
+            variable=self.auto_test_var, width=42)
+        self.auto_test_switch.pack(side="right")
         self.auto_test_switch.configure(state="disabled")
 
         self.run_test_btn = ctk.CTkButton(
-            btn_area, text="▶ Start Session", font=FONT_SMALL,
-            fg_color=ACCENT, text_color="white", hover_color="#059669",
-            corner_radius=6, height=30, command=self._start_test_session)
-        self.run_test_btn.pack(fill="x")
+            btn_area, text="Start evaluation", font=("Segoe UI", 11, "bold"),
+            fg_color=ACCENT, text_color="white", hover_color=ACCENT_HOVER,
+            corner_radius=9, height=32, command=self._start_test_session)
         self.run_test_btn.configure(state="disabled")
 
     # ── Right Panel ──────────────────────────────────────────────────────────
     def _build_right_panel(self):
         self.right = ctk.CTkFrame(self, fg_color=BG, corner_radius=0)
         self.right.grid(row=0, column=1, sticky="nsew")
+        self.right.grid_columnconfigure(0, weight=1)
+        self.right.grid_rowconfigure(1, weight=1)
 
-        # Top-right header buttons
-        header_btns = ctk.CTkFrame(self.right, fg_color="transparent")
-        header_btns.place(relx=1.0, x=-16, y=16, anchor="ne")
+        header = ctk.CTkFrame(self.right, fg_color=SURFACE, corner_radius=0,
+                              height=76, border_width=1, border_color=BORDER)
+        header.grid(row=0, column=0, sticky="ew")
+        header.grid_propagate(False)
+
+        header_copy = ctk.CTkFrame(header, fg_color="transparent")
+        header_copy.pack(side="left", padx=28, pady=15)
+        ctk.CTkLabel(header_copy, text="Recognition workspace",
+                     font=("Segoe UI", 16, "bold"), text_color=TEXT_PRIMARY,
+                     anchor="w").pack(anchor="w")
+        ctk.CTkLabel(header_copy, text="Inspect a sample and review the model output",
+                     font=FONT_SMALL, text_color=TEXT_MUTED,
+                     anchor="w").pack(anchor="w", pady=(2, 0))
+
+        header_btns = ctk.CTkFrame(header, fg_color="transparent")
+        header_btns.pack(side="right", padx=22)
 
         # Session Tracker Banner (hidden by default)
         self.session_banner = ctk.CTkFrame(self.right, fg_color=ACCENT_LIGHT, corner_radius=8,
                                            border_width=1, border_color=ACCENT)
-        self.session_banner.place(relx=0.5, y=24, anchor="n")
+        self.session_banner.place(relx=0.54, y=17, anchor="n")
         self.session_banner.place_forget()
         
         self.session_label = ctk.CTkLabel(self.session_banner, text="", font=("Segoe UI", 13, "bold"), text_color=ACCENT)
@@ -201,21 +251,25 @@ class AmharicAIApp(ctk.CTk):
         self.session_current = 0
         self.session_correct = 0
 
-        ctk.CTkButton(header_btns, text="📊 Stats", width=70, height=32,
-                      font=("Segoe UI", 12, "bold"),
-                      fg_color="transparent", text_color=TEXT_MUTED,
-                      hover_color=BORDER, corner_radius=6,
+        ctk.CTkButton(header_btns, text="Statistics", width=92, height=36,
+                      font=("Segoe UI", 11, "bold"),
+                      fg_color=SURFACE_SOFT, text_color=TEXT_SECONDARY,
+                      hover_color=BORDER, corner_radius=9,
+                      border_width=1, border_color=BORDER,
                       command=self._show_stats).pack(side="left", padx=(0, 8))
 
-        ctk.CTkButton(header_btns, text="ℹ Info", width=60, height=32,
-                      font=("Segoe UI", 12, "bold"),
-                      fg_color="transparent", text_color=TEXT_MUTED,
-                      hover_color=BORDER, corner_radius=6,
+        ctk.CTkButton(header_btns, text="About", width=72, height=36,
+                      font=("Segoe UI", 11, "bold"),
+                      fg_color=TEXT_PRIMARY, text_color="white",
+                      hover_color="#1E293B", corner_radius=9,
                       command=self._show_settings).pack(side="left")
 
-        # Center wrapper
-        self.center = ctk.CTkFrame(self.right, fg_color="transparent")
-        self.center.place(relx=0.5, rely=0.5, anchor="center")
+        # The workspace scrolls so developer details remain accessible.
+        self.center = ctk.CTkScrollableFrame(
+            self.right, fg_color="transparent", corner_radius=0,
+            scrollbar_button_color=BORDER,
+            scrollbar_button_hover_color=TEXT_MUTED)
+        self.center.grid(row=1, column=0, sticky="nsew", padx=12, pady=12)
 
         self._show_empty_state()
 
@@ -350,22 +404,74 @@ class AmharicAIApp(ctk.CTk):
 
     def _show_empty_state(self):
         self._clear_center()
-        ctk.CTkLabel(self.center, text="No image selected",
-                     font=FONT_SUBTITLE, text_color=TEXT_MUTED).pack(pady=(0, 6))
-        ctk.CTkLabel(self.center,
-                     text="Pick a sample from the left panel to begin.",
-                     font=FONT_SMALL, text_color=TEXT_MUTED).pack()
+
+        hero = ctk.CTkFrame(self.center, fg_color=SURFACE,
+                            corner_radius=24, border_width=1,
+                            border_color=BORDER)
+        hero.pack(padx=40, pady=(74, 30))
+
+        inner = ctk.CTkFrame(hero, fg_color="transparent")
+        inner.pack(padx=70, pady=54)
+
+        badge = ctk.CTkLabel(inner, text="  MODEL READY  ",
+                             font=("Segoe UI", 9, "bold"),
+                             text_color=ACCENT, fg_color=ACCENT_LIGHT,
+                             corner_radius=10, height=24)
+        badge.pack(pady=(0, 18))
+
+        glyph = ctk.CTkFrame(inner, width=96, height=96,
+                             fg_color=ACCENT_LIGHT, corner_radius=28,
+                             border_width=1, border_color=ACCENT_TINT)
+        glyph.pack()
+        glyph.pack_propagate(False)
+        ctk.CTkLabel(glyph, text="ሀ", font=("Segoe UI", 48, "bold"),
+                     text_color=ACCENT).place(relx=0.5, rely=0.48, anchor="center")
+
+        ctk.CTkLabel(inner, text="Recognize Amharic characters",
+                     font=("Segoe UI", 26, "bold"),
+                     text_color=TEXT_PRIMARY).pack(pady=(22, 7))
+        ctk.CTkLabel(
+            inner,
+            text="Choose a dataset sample or upload your own image.\nThe prediction and confidence will appear here.",
+            font=FONT_SUBTITLE, text_color=TEXT_SECONDARY,
+            justify="center").pack()
+
+        steps = ctk.CTkFrame(inner, fg_color="transparent")
+        steps.pack(pady=(28, 0))
+        for number, label in (("01", "Select image"), ("02", "Run model"), ("03", "Review result")):
+            step = ctk.CTkFrame(steps, fg_color=SURFACE_SOFT,
+                                corner_radius=12, border_width=1,
+                                border_color=BORDER)
+            step.pack(side="left", padx=5)
+            ctk.CTkLabel(step, text=number, font=("Segoe UI", 10, "bold"),
+                         text_color=ACCENT).pack(side="left", padx=(12, 7), pady=9)
+            ctk.CTkLabel(step, text=label, font=FONT_SMALL,
+                         text_color=TEXT_SECONDARY).pack(side="left", padx=(0, 12), pady=9)
 
     def _show_loading(self):
         self._clear_center()
-        self.loading_label = ctk.CTkLabel(self.center, text="Analyzing",
-                                          font=FONT_SUBTITLE,
-                                          text_color=TEXT_SECONDARY)
-        self.loading_label.pack(pady=(0, 12))
 
-        self.progress = ctk.CTkProgressBar(self.center, width=220,
-                                            progress_color=ACCENT,
-                                            fg_color=BORDER)
+        loading_card = ctk.CTkFrame(self.center, fg_color=SURFACE,
+                                    corner_radius=22, border_width=1,
+                                    border_color=BORDER)
+        loading_card.pack(padx=40, pady=(150, 30))
+        loading_inner = ctk.CTkFrame(loading_card, fg_color="transparent")
+        loading_inner.pack(padx=76, pady=48)
+
+        ctk.CTkLabel(loading_inner, text="AI",
+                     font=("Segoe UI", 13, "bold"), text_color="white",
+                     fg_color=ACCENT, width=48, height=48,
+                     corner_radius=15).pack(pady=(0, 16))
+        self.loading_label = ctk.CTkLabel(loading_inner, text="Analyzing image",
+                                          font=("Segoe UI", 18, "bold"),
+                                          text_color=TEXT_PRIMARY)
+        self.loading_label.pack(pady=(0, 6))
+        ctk.CTkLabel(loading_inner, text="Preparing the image for recognition",
+                     font=FONT_SMALL, text_color=TEXT_MUTED).pack(pady=(0, 18))
+
+        self.progress = ctk.CTkProgressBar(loading_inner, width=280, height=8,
+                                           progress_color=ACCENT,
+                                           fg_color=BORDER, corner_radius=4)
         self.progress.set(0)
         self.progress.pack()
 
@@ -381,12 +487,12 @@ class AmharicAIApp(ctk.CTk):
 
         # ── Result card ──────────────────────────────────────────────────
         card = ctk.CTkFrame(self.center, fg_color=SURFACE,
-                            corner_radius=16, border_width=1,
+                            corner_radius=22, border_width=1,
                             border_color=BORDER)
-        card.pack(padx=20, pady=10)
+        card.pack(padx=36, pady=(22, 30))
 
         inner = ctk.CTkFrame(card, fg_color="transparent")
-        inner.pack(padx=36, pady=32)
+        inner.pack(padx=48, pady=38)
 
         # Status pill
         pill_bg = DANGER_LIGHT if is_low else ACCENT_LIGHT
@@ -459,42 +565,65 @@ class AmharicAIApp(ctk.CTk):
         ctk.CTkFrame(inner, fg_color=BORDER, height=1).pack(fill="x", pady=(0, 16))
 
         # Outcome summary
-        ctk.CTkLabel(inner, text="Outcome", font=("Segoe UI", 11, "bold"),
-                     text_color=TEXT_SECONDARY, anchor="w").pack(anchor="w")
-                     
         is_known = true_label in self.config.get("class_to_idx", {})
         if is_known:
             is_correct = (char == true_label)
             result_text = "CORRECT" if is_correct else "WRONG"
-            result_color = "#10B981" if is_correct else DANGER
+            result_color = SUCCESS if is_correct else DANGER
+            result_bg = SUCCESS_LIGHT if is_correct else DANGER_LIGHT
             ans_text = true_label
         else:
-            result_text = "UNKNOWN (User Upload)"
+            result_text = "USER UPLOAD"
             result_color = TEXT_MUTED
+            result_bg = SURFACE_SOFT
             ans_text = "N/A"
 
-        outcome = (
-            f"Prediction:     {char}\n"
-            f"Correct Answer: {ans_text}\n"
-            f"Confidence:     {conf:.1f}%\n"
-            f"Result:         {result_text}"
+        outcome_header = ctk.CTkFrame(inner, fg_color="transparent")
+        outcome_header.pack(fill="x", pady=(0, 10))
+        ctk.CTkLabel(outcome_header, text="Outcome summary",
+                     font=("Segoe UI", 12, "bold"),
+                     text_color=TEXT_PRIMARY).pack(side="left")
+        ctk.CTkLabel(outcome_header, text=f"  {result_text}  ",
+                     font=("Segoe UI", 9, "bold"),
+                     text_color=result_color, fg_color=result_bg,
+                     corner_radius=9, height=22).pack(side="right")
+
+        summary = ctk.CTkFrame(inner, fg_color=SURFACE_SOFT,
+                               corner_radius=12, border_width=1,
+                               border_color=BORDER)
+        summary.pack(fill="x", pady=(0, 14))
+
+        metrics = (
+            ("PREDICTION", char),
+            ("EXPECTED", ans_text),
+            ("CONFIDENCE", f"{conf:.1f}%"),
         )
-        ctk.CTkLabel(inner, text=outcome, font=FONT_MONO,
-                     text_color=result_color, justify="left",
-                     anchor="w").pack(anchor="w", pady=(6, 12))
+        for metric_index, (label, value) in enumerate(metrics):
+            metric = ctk.CTkFrame(summary, fg_color="transparent")
+            metric.pack(side="left", expand=True, fill="both", padx=14, pady=13)
+            ctk.CTkLabel(metric, text=label, font=("Segoe UI", 8, "bold"),
+                         text_color=TEXT_MUTED).pack()
+            ctk.CTkLabel(metric, text=value, font=("Segoe UI", 15, "bold"),
+                         text_color=TEXT_PRIMARY).pack(pady=(3, 0))
+            if metric_index < len(metrics) - 1:
+                ctk.CTkFrame(summary, fg_color=BORDER, width=1).pack(
+                    side="left", fill="y", pady=10)
 
         # Developer details
-        ctk.CTkLabel(inner, text="Developer Details", font=("Segoe UI", 11, "bold"),
-                     text_color=TEXT_SECONDARY, anchor="w").pack(anchor="w")
+        ctk.CTkLabel(inner, text="Developer details", font=("Segoe UI", 11, "bold"),
+                     text_color=TEXT_SECONDARY, anchor="w").pack(anchor="w", pady=(2, 7))
 
         details = (
             f"Source:   {source_file}\n"
             f"Logits:   {logits_list}\n"
             f"Probs:    {probs_list}"
         )
-        ctk.CTkLabel(inner, text=details, font=FONT_MONO,
-                     text_color=TEXT_MUTED, justify="left",
-                     anchor="w").pack(anchor="w", pady=(6, 0))
+        detail_panel = ctk.CTkFrame(inner, fg_color="#F1F5F9",
+                                    corner_radius=10)
+        detail_panel.pack(fill="x")
+        ctk.CTkLabel(detail_panel, text=details, font=FONT_MONO,
+                     text_color=TEXT_SECONDARY, justify="left",
+                     anchor="w").pack(fill="x", padx=14, pady=11)
 
     # ── Image Cards ──────────────────────────────────────────────────────────
     def _shuffle_images(self):
@@ -504,21 +633,27 @@ class AmharicAIApp(ctk.CTk):
         self.thumb_refs = []
         images = get_random_images(5)
 
-        for path in images:
-            img = Image.open(path).convert("RGB").resize((48, 48), Image.Resampling.LANCZOS)
-            ctk_img = ctk.CTkImage(light_image=img, size=(48, 48))
+        for index, path in enumerate(images, start=1):
+            img = Image.open(path).convert("RGB").resize((38, 38), Image.Resampling.LANCZOS)
+            ctk_img = ctk.CTkImage(light_image=img, size=(38, 38))
             self.thumb_refs.append(ctk_img)
 
             card = ctk.CTkButton(
                 self.card_container,
-                text="",
+                text=f"   Sample {index}   ·   {path.parent.name}",
                 image=ctk_img,
-                fg_color="transparent",
-                hover_color=ACCENT_LIGHT,
-                corner_radius=10,
-                width=64, height=64,
+                compound="left",
+                anchor="w",
+                font=("Segoe UI", 11, "bold"),
+                text_color=SIDEBAR_TEXT,
+                fg_color=SIDEBAR_SOFT,
+                hover_color=SIDEBAR_BORDER,
+                border_width=1,
+                border_color=SIDEBAR_BORDER,
+                corner_radius=12,
+                height=48,
                 command=lambda p=path: self._on_select(p))
-            card.pack(pady=4)
+            card.pack(fill="x", pady=2)
 
         self._show_empty_state()
 
@@ -580,11 +715,15 @@ class AmharicAIApp(ctk.CTk):
     def _toggle_test_session(self):
         on = self.test_session_var.get()
         if on:
+            self.test_options.pack(fill="x", padx=12, pady=(0, 7))
+            self.run_test_btn.pack(fill="x", padx=12, pady=(0, 10))
             self.test_count_entry.configure(state="normal")
             self.run_test_btn.configure(state="normal")
             self.auto_test_switch.configure(state="normal")
             self.upload_btn.configure(state="disabled")
         else:
+            self.test_options.pack_forget()
+            self.run_test_btn.pack_forget()
             self.test_count_entry.configure(state="disabled")
             self.run_test_btn.configure(state="disabled")
             self.auto_test_switch.configure(state="disabled")

@@ -598,7 +598,7 @@ For every expansion:
 
 ---
 
-# PHASE 28 — Handwritten Character Dataset
+# PHASE 28 /not to be implimented now/ — Handwritten Character Dataset
 
 * [ ] Design data collection format.
 * [ ] Collect handwriting from multiple people.
@@ -635,7 +635,7 @@ Future OCR must find characters inside larger images.
 
 ---
 
-# PHASE 30 — Word Recognition
+# PHASE 30 /not to be implimented now/ — Word Recognition
 
 * [ ] Process multiple characters.
 * [ ] Reconstruct character sequences.
@@ -646,7 +646,7 @@ Future OCR must find characters inside larger images.
 
 ---
 
-# PHASE 31 — Full-Line Recognition
+# PHASE 31 /not to be implimented now/ — Full-Line Recognition
 
 Instead of:
 
@@ -675,7 +675,7 @@ These should only be attempted after the fundamentals are understood.
 
 ---
 
-# PHASE 32 — Amharic Language Model Integration
+# PHASE 32 /not to be implimented now/ — Amharic Language Model Integration
 
 Vision sometimes makes mistakes between visually similar characters.
 
@@ -704,7 +704,7 @@ Future tasks:
 
 ---
 
-# PHASE 33 — Full Amharic OCR
+# PHASE 33 /not to be implimented now/ — Full Amharic OCR
 
 Target system:
 
@@ -736,7 +736,7 @@ Possible inputs:
 
 ---
 
-# PHASE 34 — Production API
+# PHASE 34 /not to be implimented now/ — Production API
 
 * [ ] Build inference service.
 * [ ] Create API endpoint.
@@ -808,33 +808,6 @@ Skills from this project could later support:
 
 ---
 
-# PHASE 37 — Portfolio and GitHub Quality
-
-Before making the repository public:
-
-* [ ] Clean project structure.
-* [ ] Good README.
-* [ ] Explain dataset.
-* [ ] Explain model.
-* [ ] Explain training.
-* [ ] Explain evaluation.
-* [ ] Include graphs.
-* [ ] Include confusion matrix.
-* [ ] Include example predictions.
-* [ ] Include incorrect predictions.
-* [ ] Document limitations.
-* [ ] Document future work.
-* [ ] Add installation instructions.
-* [ ] Add reproducible training instructions.
-* [ ] Add inference instructions.
-* [ ] Add requirements file.
-* [ ] Add license where appropriate.
-* [ ] Verify dataset licensing.
-* [ ] Verify font licensing.
-* [ ] Remove unnecessary files.
-* [ ] Ensure `.venv` remains ignored.
-
----
 
 # Ultimate Goal
 
