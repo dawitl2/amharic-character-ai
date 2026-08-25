@@ -1,0 +1,147 @@
+"""
+100-Epoch Training Script
+=========================
+Run this from the project root:
+
+    .venv\Scripts\python.exe src/train_100_epochs.py
+
+This will train the SimpleModel on the full augmented dataset for 100 epochs,
+then automatically save the updated weights to models/ so the GUI uses them.
+"""
+
+import sys
+import os
+import json
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torchvision.datasets import ImageFolder
+from torchvision import transforms
+from sklearn.model_selection import train_test_split
+from torch.utils.data import Subset, DataLoader
+
+sys.stdout.reconfigure(encoding='utf-8')
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from simple_model import SimpleModel
+
+NUM_EPOCHS = 100
+BATCH_SIZE = 64
+LEARNING_RATE = 0.01
+
+print(f"--- Training for {NUM_EPOCHS} Epochs ---")
+print(f"Batch size: {BATCH_SIZE} | Learning rate: {LEARNING_RATE}")
+print()
+
+# 1. Load Dataset
+transform = transforms.Compose([
+    transforms.Grayscale(num_output_channels=1),
+    transforms.ToTensor()
+])
+dataset = ImageFolder(root="data", transform=transform)
+print(f"Total images: {len(dataset)}")
+print(f"Classes: {dataset.class_to_idx}")
+
+# 2. Split: 70% train, 15% val, 15% test
+indices = list(range(len(dataset)))
+labels = dataset.targets
+
+train_idx, temp_idx, _, temp_labels = train_test_split(
+    indices, labels, test_size=0.30, random_state=42, stratify=labels
+)
+val_idx, test_idx = train_test_split(
+    temp_idx, test_size=0.50, random_state=42, stratify=temp_labels
+)
+
+train_loader = DataLoader(Subset(dataset, train_idx), batch_size=BATCH_SIZE, shuffle=True)
+val_loader = DataLoader(Subset(dataset, val_idx), batch_size=BATCH_SIZE, shuffle=False)
+test_loader = DataLoader(Subset(dataset, test_idx), batch_size=BATCH_SIZE, shuffle=False)
+
+print(f"Train: {len(train_idx)} | Val: {len(val_idx)} | Test: {len(test_idx)}")
+print()
+
+# 3. Model, Loss, Optimizer
+model = SimpleModel()
+loss_fn = nn.CrossEntropyLoss()
+optimizer = optim.SGD(model.parameters(), lr=LEARNING_RATE)
+
+best_val_acc = 0.0
+
+print(f"{'Epoch':>6} | {'Train Acc':>10} | {'Val Acc':>10} | {'Train Loss':>11}")
+print("-" * 50)
+
+for epoch in range(1, NUM_EPOCHS + 1):
+    # Train
+    model.train()
+    train_correct = 0
+    train_total = 0
+    epoch_loss = 0.0
+
+    for images, labels_batch in train_loader:
+        optimizer.zero_grad()
+        logits = model(images)
+        loss = loss_fn(logits, labels_batch)
+        loss.backward()
+        optimizer.step()
+
+        epoch_loss += loss.item()
+        preds = torch.argmax(logits, dim=1)
+        train_correct += (preds == labels_batch).sum().item()
+        train_total += labels_batch.size(0)
+
+    train_acc = (train_correct / train_total) * 100
+    avg_loss = epoch_loss / len(train_loader)
+
+    # Validate
+    model.eval()
+    val_correct = 0
+    val_total = 0
+    with torch.no_grad():
+        for val_imgs, val_lbls in val_loader:
+            val_logits = model(val_imgs)
+            val_preds = torch.argmax(val_logits, dim=1)
+            val_correct += (val_preds == val_lbls).sum().item()
+            val_total += val_lbls.size(0)
+
+    val_acc = (val_correct / val_total) * 100
+
+    if val_acc > best_val_acc:
+        best_val_acc = val_acc
+
+    print(f"{epoch:>6} | {train_acc:>9.1f}% | {val_acc:>9.1f}% | {avg_loss:>11.4f}")
+
+# 4. Final Test
+model.eval()
+test_correct = 0
+test_total = 0
+with torch.no_grad():
+    for test_imgs, test_lbls in test_loader:
+        test_logits = model(test_imgs)
+        test_preds = torch.argmax(test_logits, dim=1)
+        test_correct += (test_preds == test_lbls).sum().item()
+        test_total += test_lbls.size(0)
+
+test_acc = (test_correct / test_total) * 100
+
+print()
+print(f"Best Validation Accuracy: {best_val_acc:.2f}%")
+print(f"Final Test Accuracy:      {test_acc:.2f}%")
+
+# 5. Save Model Weights (overwrite the old ones so the GUI uses the new brain)
+os.makedirs("models", exist_ok=True)
+
+torch.save(model.state_dict(), "models/simple_model_weights.pth")
+print("Saved weights to models/simple_model_weights.pth")
+
+config = {
+    "architecture": "SimpleModel (Flatten -> Linear)",
+    "image_width": 64,
+    "image_height": 64,
+    "class_to_idx": dataset.class_to_idx,
+    "epochs_trained": NUM_EPOCHS,
+    "test_accuracy": round(test_acc, 2)
+}
+with open("models/model_config.json", "w", encoding="utf-8") as f:
+    json.dump(config, f, ensure_ascii=False, indent=2)
+print("Saved config to models/model_config.json")
+print()
+print("Done! The GUI will now use the updated model.")
