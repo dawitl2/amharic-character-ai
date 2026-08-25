@@ -151,25 +151,38 @@ class AmharicAIApp(ctk.CTk):
         self._show_empty_state()
 
     def _show_settings(self):
-        """Opens a clean popup with project status information."""
-        popup = ctk.CTkToplevel(self)
-        popup.title("Project Info")
-        popup.geometry("480x440")
-        popup.configure(fg_color=SURFACE)
-        popup.resizable(False, False)
-        popup.grab_set()  # modal
+        """Renders project status information inline in the right panel."""
+        self._clear_center()
+
+        # Back / close button row
+        top_row = ctk.CTkFrame(self.center, fg_color="transparent")
+        top_row.pack(fill="x", pady=(0, 4))
+
+        ctk.CTkButton(top_row, text="✕  Back", width=80, height=32,
+                      font=FONT_SMALL, fg_color="transparent",
+                      text_color=TEXT_MUTED, hover_color=BORDER,
+                      corner_radius=6,
+                      command=self._show_empty_state).pack(anchor="w")
+
+        # Card
+        card = ctk.CTkFrame(self.center, fg_color=SURFACE,
+                            corner_radius=16, border_width=1,
+                            border_color=BORDER)
+        card.pack(padx=20, pady=(0, 10))
+
+        inner = ctk.CTkFrame(card, fg_color="transparent")
+        inner.pack(padx=32, pady=28)
 
         # Header
-        ctk.CTkLabel(popup, text="Project Status",
-                     font=FONT_HEADING, text_color=TEXT_PRIMARY).pack(pady=(24, 4))
-        ctk.CTkFrame(popup, fg_color=BORDER, height=1).pack(fill="x", padx=28, pady=(8, 16))
+        ctk.CTkLabel(inner, text="Project Status",
+                     font=FONT_HEADING, text_color=TEXT_PRIMARY).pack(anchor="w")
+        ctk.CTkFrame(inner, fg_color=BORDER, height=1).pack(fill="x", pady=(8, 14))
 
-        # Info content
-        info_frame = ctk.CTkFrame(popup, fg_color="transparent")
-        info_frame.pack(fill="both", expand=True, padx=28)
-
+        # Info rows
         num_classes = len(self.config.get("class_to_idx", {}))
         class_names = ", ".join(self.config.get("class_to_idx", {}).keys())
+        epochs = self.config.get("epochs_trained", 15)
+        test_acc = self.config.get("test_accuracy", "N/A")
 
         lines = [
             ("Stage", "Phase 21 — Real Inference"),
@@ -177,8 +190,8 @@ class AmharicAIApp(ctk.CTk):
             ("Classes", f"{num_classes}  ({class_names})"),
             ("Image Size", f"{self.config.get('image_width', 64)} × {self.config.get('image_height', 64)} px"),
             ("Dataset", "~6,000 augmented synthetic images"),
-            ("Training", "15 epochs, SGD (lr=0.01), batch size 64"),
-            ("Test Accuracy", "46.19% on augmented dataset"),
+            ("Training", f"{epochs} epochs, SGD (lr=0.01), batch size 64"),
+            ("Test Accuracy", f"{test_acc}%"),
             ("Capabilities", "Recognizes ሀ, ለ, መ from synthetic images"),
         ]
 
@@ -190,7 +203,7 @@ class AmharicAIApp(ctk.CTk):
         ]
 
         for label, value in lines:
-            row = ctk.CTkFrame(info_frame, fg_color="transparent")
+            row = ctk.CTkFrame(inner, fg_color="transparent")
             row.pack(fill="x", pady=3)
             ctk.CTkLabel(row, text=label, font=("Segoe UI", 11, "bold"),
                          text_color=TEXT_SECONDARY, width=110, anchor="w").pack(side="left")
@@ -198,21 +211,15 @@ class AmharicAIApp(ctk.CTk):
                          text_color=TEXT_PRIMARY, anchor="w",
                          wraplength=300).pack(side="left", padx=(8, 0))
 
-        ctk.CTkFrame(info_frame, fg_color=BORDER, height=1).pack(fill="x", pady=(12, 8))
-        ctk.CTkLabel(info_frame, text="Known Limitations",
+        ctk.CTkFrame(inner, fg_color=BORDER, height=1).pack(fill="x", pady=(12, 8))
+        ctk.CTkLabel(inner, text="Known Limitations",
                      font=("Segoe UI", 11, "bold"), text_color=DANGER,
                      anchor="w").pack(anchor="w")
 
         for lim in limitations:
-            ctk.CTkLabel(info_frame, text=f"•  {lim}", font=FONT_SMALL,
+            ctk.CTkLabel(inner, text=f"•  {lim}", font=FONT_SMALL,
                          text_color=TEXT_SECONDARY, anchor="w",
-                         wraplength=400).pack(anchor="w", pady=1)
-
-        # Close button
-        ctk.CTkButton(popup, text="Close", fg_color=BG, text_color=TEXT_PRIMARY,
-                      hover_color=BORDER, border_width=1, border_color=BORDER,
-                      corner_radius=8, height=36,
-                      command=popup.destroy).pack(pady=(12, 20))
+                         wraplength=380).pack(anchor="w", pady=1)
 
     def _clear_center(self):
         for w in self.center.winfo_children():
