@@ -368,6 +368,9 @@ class AmharicAIApp(ctk.CTk):
         is_low = conf < 80.0
         is_known = true_label in self.config.get("class_to_idx", {})
         is_correct = (char == true_label) if is_known else False
+        
+        # Track this result in the active test session (if any)
+        self._track_session_result(char, true_label)
 
         # ── Result card ──────────────────────────────────────────────────
         card = ctk.CTkFrame(self.center, fg_color=SURFACE,
@@ -566,7 +569,7 @@ class AmharicAIApp(ctk.CTk):
         if self._inference_id == inf_id:
             self.after(0, self._show_result, char, conf, logits_list, probs_list, src, lbl, image_path)
 
-    # ── Visual Test Session ──────────────────────────────────────────────────
+    # ── Test Mode ─────────────────────────────────────────────────────────────
     def _toggle_test_session(self):
         if self.test_session_var.get():
             self.test_count_entry.configure(state="normal")
@@ -574,7 +577,8 @@ class AmharicAIApp(ctk.CTk):
         else:
             self.test_count_entry.configure(state="disabled")
             self.run_test_btn.configure(state="disabled")
-            self._end_session(show_results=False)
+            if self.session_active:
+                self._end_session(show_results=False)
 
     def _start_test_session(self):
         try:
@@ -587,94 +591,62 @@ class AmharicAIApp(ctk.CTk):
         self.session_target = count
         self.session_current = 0
         self.session_correct = 0
+        self.session_wrong = 0
         
-        self.run_test_btn.configure(state="disabled", text="Session Running...")
+        self.run_test_btn.configure(state="disabled", text="Running...")
         self.test_count_entry.configure(state="disabled")
+        self.test_session_switch.configure(state="disabled")
         
         self._update_session_banner()
-        self.session_banner.place(relx=0.5, y=24, anchor="n")
+        self.session_banner.place(relx=0.5, y=16, anchor="n")
         
-        if not hasattr(self, '_inference_id'):
-            self._inference_id = 0
-        self._inference_id += 1
+        # Auto-shuffle to give fresh images
+        self._shuffle_images()
         
-        # Start the background visual loop
-        threading.Thread(target=self._run_visual_test_loop, args=(count, self._inference_id), daemon=True).start()
-
-    def _run_visual_test_loop(self, count, inf_id):
-        images = get_random_images(count)
-        for img_path in images:
-            if self._inference_id != inf_id or not getattr(self, 'session_active', False):
-                return # cancelled
+    def _track_session_result(self, predicted, true_label):
+        """Called after every prediction while session is active."""
+        if not self.session_active:
+            return
             
-            # Show loading UI
-            self.after(0, self._show_loading)
-            
-            # Brief pause to simulate starting
-            time.sleep(0.3)
-            if self._inference_id != inf_id: return
-            
-            self.after(0, lambda: self.loading_label.configure(text="Evaluating next image..."))
-            for i in range(1, 6):
-                time.sleep(0.05)
-                if self._inference_id == inf_id:
-                    self.after(0, lambda v=i/10: self.progress.set(v))
-
-            # Run inference
-            img = Image.open(img_path).convert("RGB")
-            tensor = self.transform(img).unsqueeze(0)
-
-            with torch.no_grad():
-                logits = self.model(tensor)
-
-            probs = F.softmax(logits, dim=1)
-            top_prob, top_idx = torch.max(probs, dim=1)
-
-            char = self.idx_to_class[top_idx.item()]
-            conf = top_prob.item() * 100
-
-            for i in range(6, 11):
-                time.sleep(0.05)
-                if self._inference_id == inf_id:
-                    self.after(0, lambda v=i/10: self.progress.set(v))
-
-            logits_list = [round(float(x), 2) for x in logits.numpy()[0]]
-            probs_list = [round(float(x), 3) for x in probs.numpy()[0]]
-            src = os.path.basename(img_path)
-            lbl = img_path.parent.name
-            
-            if char == lbl:
-                self.session_correct += 1
-            self.session_current += 1
-
-            if self._inference_id == inf_id:
-                # Update UI with result
-                self.after(0, self._show_result, char, conf, logits_list, probs_list, src, lbl, img_path)
-                self.after(0, self._update_session_banner)
-            
-            # Wait for user to look at the result before proceeding
-            time.sleep(1.8)
-            
-        if self._inference_id == inf_id:
-            self.after(0, self._end_session)
+        self.session_current += 1
+        is_known = true_label in self.config.get("class_to_idx", {})
+        if is_known and predicted == true_label:
+            self.session_correct += 1
+        else:
+            self.session_wrong += 1
+        
+        self._update_session_banner()
+        
+        if self.session_current >= self.session_target:
+            # Let user see the last result for a beat, then show summary
+            self.after(1200, self._end_session)
 
     def _update_session_banner(self):
-        remaining = self.session_target - self.session_current
-        wrong = self.session_current - self.session_correct
-        text = f"Visual Test Mode: {self.session_current} / {self.session_target}  |  Correct: {self.session_correct}  |  Wrong: {wrong}  |  Remaining: {remaining}"
-        self.session_label.configure(text=text)
+        done = self.session_current
+        target = self.session_target
+        remaining = target - done
+        pct = (self.session_correct / done * 100) if done > 0 else 0
+        
+        self.session_label.configure(
+            text=f"  {done}/{target} done   ·   ✓ {self.session_correct}   ✗ {self.session_wrong}   ·   {remaining} left   ·   {pct:.0f}%  "
+        )
         
     def _end_session(self, show_results=True):
+        was_active = self.session_active
+        done = self.session_current
+        correct = self.session_correct
+        
         self.session_active = False
         self.session_banner.place_forget()
         self.run_test_btn.configure(state="normal", text="▶ Start Session")
+        self.test_session_switch.configure(state="normal")
         
         if self.test_session_var.get():
             self.test_count_entry.configure(state="normal")
             
-        if show_results and self.session_current > 0:
-            accuracy = (self.session_correct / self.session_current) * 100
-            self._show_session_result(self.session_correct, self.session_current, accuracy)
+        if show_results and was_active and done > 0:
+            accuracy = (correct / done) * 100
+            self._show_session_result(correct, done, accuracy)
 
     def _show_session_result(self, correct, total, accuracy):
         self._clear_center()
@@ -687,42 +659,52 @@ class AmharicAIApp(ctk.CTk):
         inner = ctk.CTkFrame(card, fg_color="transparent")
         inner.pack(padx=48, pady=40)
         
-        # Header
-        ctk.CTkLabel(inner, text="🏆 Session Complete",
-                     font=("Segoe UI", 20, "bold"), text_color=TEXT_PRIMARY).pack(pady=(0, 24))
-                     
-        # Score Breakdown
+        # Title
+        ctk.CTkLabel(inner, text="Test Session Complete",
+                     font=("Segoe UI", 20, "bold"), text_color=TEXT_PRIMARY).pack(pady=(0, 8))
+        ctk.CTkLabel(inner, text=f"Evaluated {total} images",
+                     font=FONT_SMALL, text_color=TEXT_MUTED).pack(pady=(0, 24))
+        
+        # Score boxes side by side
         score_frame = ctk.CTkFrame(inner, fg_color="transparent")
         score_frame.pack(fill="x", pady=(0, 24))
         
         wrong = total - correct
         
-        # Correct block
-        corr_box = ctk.CTkFrame(score_frame, fg_color="#ECFDF5", corner_radius=12, border_width=1, border_color="#10B981")
+        # Correct box
+        corr_box = ctk.CTkFrame(score_frame, fg_color="#ECFDF5", corner_radius=12,
+                                border_width=1, border_color="#10B981")
         corr_box.pack(side="left", padx=8, expand=True, fill="both")
-        ctk.CTkLabel(corr_box, text="CORRECT", font=FONT_TINY, text_color="#10B981").pack(pady=(12, 0))
-        ctk.CTkLabel(corr_box, text=str(correct), font=("Segoe UI", 32, "bold"), text_color="#10B981").pack(pady=(0, 12))
+        ctk.CTkLabel(corr_box, text="CORRECT", font=FONT_TINY,
+                     text_color="#10B981").pack(pady=(14, 2))
+        ctk.CTkLabel(corr_box, text=str(correct), font=("Segoe UI", 36, "bold"),
+                     text_color="#10B981").pack(pady=(0, 14))
         
-        # Wrong block
-        wrong_box = ctk.CTkFrame(score_frame, fg_color=DANGER_LIGHT, corner_radius=12, border_width=1, border_color=DANGER)
+        # Wrong box
+        wrong_box = ctk.CTkFrame(score_frame, fg_color=DANGER_LIGHT, corner_radius=12,
+                                 border_width=1, border_color=DANGER)
         wrong_box.pack(side="left", padx=8, expand=True, fill="both")
-        ctk.CTkLabel(wrong_box, text="WRONG", font=FONT_TINY, text_color=DANGER).pack(pady=(12, 0))
-        ctk.CTkLabel(wrong_box, text=str(wrong), font=("Segoe UI", 32, "bold"), text_color=DANGER).pack(pady=(0, 12))
+        ctk.CTkLabel(wrong_box, text="WRONG", font=FONT_TINY,
+                     text_color=DANGER).pack(pady=(14, 2))
+        ctk.CTkLabel(wrong_box, text=str(wrong), font=("Segoe UI", 36, "bold"),
+                     text_color=DANGER).pack(pady=(0, 14))
 
-        # Accuracy Bar & Text
+        # Accuracy percentage
         color = "#10B981" if accuracy >= 75 else DANGER
         
-        ctk.CTkLabel(inner, text=f"Final Accuracy: {accuracy:.1f}%",
-                     font=("Segoe UI", 16, "bold"), text_color=color).pack(pady=(0, 8))
+        ctk.CTkLabel(inner, text=f"{accuracy:.1f}%",
+                     font=("Segoe UI", 42, "bold"), text_color=color).pack(pady=(0, 4))
+        ctk.CTkLabel(inner, text="Final Accuracy",
+                     font=FONT_SMALL, text_color=TEXT_MUTED).pack(pady=(0, 8))
                      
-        bar = ctk.CTkProgressBar(inner, width=280, height=10,
-                                 progress_color=color, fg_color=BORDER, corner_radius=5)
+        bar = ctk.CTkProgressBar(inner, width=280, height=8,
+                                 progress_color=color, fg_color=BORDER, corner_radius=4)
         bar.set(accuracy / 100.0)
-        bar.pack(pady=(0, 32))
+        bar.pack(pady=(0, 28))
                      
-        ctk.CTkButton(inner, text="Finish", width=140, height=40, font=FONT_BODY,
-                      fg_color=BG, text_color=TEXT_PRIMARY,
-                      hover_color=BORDER, border_width=1, border_color=BORDER,
+        ctk.CTkButton(inner, text="Done", width=140, height=40, font=FONT_BODY,
+                      fg_color=ACCENT, text_color="white",
+                      hover_color="#059669", corner_radius=8,
                       command=self._show_empty_state).pack()
 
 
