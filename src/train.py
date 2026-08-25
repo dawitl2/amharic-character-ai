@@ -1,14 +1,14 @@
 """
-100-Epoch Training Script
-=========================
+Continuous Training Pipeline
+============================
 Run this from the project root:
 
-    .venv\Scripts\python.exe src/train_100_epochs.py
+    .venv\Scripts\python.exe src/train.py
 
-This will train the SimpleModel on the full augmented dataset for 100 epochs,
-then automatically save the updated weights to models/ so the GUI uses them.
+This script trains the SimpleModel. It automatically detects and resumes
+from previous checkpoints, saves the best model based on validation accuracy,
+and updates the configuration for the GUI.
 """
-
 import sys
 import os
 import json
@@ -24,11 +24,18 @@ sys.stdout.reconfigure(encoding='utf-8')
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from simple_model import SimpleModel
 
-NUM_EPOCHS = 100
+NUM_EPOCHS_TO_RUN = 100
 BATCH_SIZE = 64
 LEARNING_RATE = 0.01
 
-print(f"--- Training for {NUM_EPOCHS} Epochs ---")
+MODEL_DIR = "models"
+CONFIG_PATH = os.path.join(MODEL_DIR, "model_config.json")
+LATEST_CHECKPOINT = os.path.join(MODEL_DIR, "latest_checkpoint.pth")
+BEST_MODEL_WEIGHTS = os.path.join(MODEL_DIR, "best_model_weights.pth")
+LEGACY_WEIGHTS = os.path.join(MODEL_DIR, "simple_model_weights.pth")
+
+print(f"--- Training Pipeline ---")
+print(f"Targeting {NUM_EPOCHS_TO_RUN} additional epochs.")
 print(f"Batch size: {BATCH_SIZE} | Learning rate: {LEARNING_RATE}")
 print()
 
