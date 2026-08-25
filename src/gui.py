@@ -16,7 +16,31 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from simple_model import SimpleModel
 
 ctk.set_appearance_mode("Light")
-ctk.set_default_color_theme("green")
+
+# ─── Color Palette ───────────────────────────────────────────────────────────
+BG           = "#FAFAFA"
+SURFACE      = "#FFFFFF"
+BORDER       = "#E8E8E8"
+TEXT_PRIMARY  = "#1A1A1A"
+TEXT_SECONDARY= "#6B6B6B"
+TEXT_MUTED    = "#9CA3AF"
+ACCENT        = "#0EA47A"
+ACCENT_HOVER  = "#0C8A66"
+ACCENT_LIGHT  = "#ECFDF5"
+DANGER        = "#EF4444"
+DANGER_LIGHT  = "#FEF2F2"
+
+# ─── Fonts ───────────────────────────────────────────────────────────────────
+FONT_TITLE    = ("Segoe UI", 22, "bold")
+FONT_SUBTITLE = ("Segoe UI", 13)
+FONT_HEADING  = ("Segoe UI", 16, "bold")
+FONT_BODY     = ("Segoe UI", 13)
+FONT_SMALL    = ("Segoe UI", 11)
+FONT_TINY     = ("Segoe UI", 10)
+FONT_CHAR     = ("Segoe UI", 64, "bold")
+FONT_CONF     = ("Segoe UI", 28, "bold")
+FONT_MONO     = ("Consolas", 10)
+
 
 def get_random_images(num_images=5):
     data_dir = Path("data")
@@ -27,37 +51,37 @@ def get_random_images(num_images=5):
         return []
     return random.sample(all_images, min(num_images, len(all_images)))
 
-class AmharicAIChat(ctk.CTk):
+
+class AmharicAIApp(ctk.CTk):
     def __init__(self):
         super().__init__()
-        
+
         self.title("Amharic Character AI")
-        self.geometry("900x700")
-        
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=1)
-        
-        # Header
-        self.header = ctk.CTkFrame(self, corner_radius=0, fg_color="#FFFFFF", height=60)
-        self.header.grid(row=0, column=0, sticky="ew")
-        self.header.pack_propagate(False)
-        ctk.CTkLabel(self.header, text="Amharic OCR Assistant", font=ctk.CTkFont(size=20, weight="bold"), text_color="#202123").pack(pady=15)
-        
-        # Chat area
-        self.chat_frame = ctk.CTkScrollableFrame(self, fg_color="#F7F7F8")
-        self.chat_frame.grid(row=1, column=0, sticky="nsew", padx=0, pady=0)
-        
-        # Load Model
-        self.load_model()
-        
-        # Start initial prompt
-        self.prompt_user_for_image()
-        
-    def load_model(self):
+        self.geometry("960x640")
+        self.minsize(860, 580)
+        self.configure(fg_color=BG)
+
+        # Load model once
+        self._load_model()
+
+        # Two‑column grid: left selector | right results
+        self.grid_columnconfigure(0, weight=0, minsize=340)
+        self.grid_columnconfigure(1, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+
+        self._build_left_panel()
+        self._build_right_panel()
+
+        # Initial state
+        self._shuffle_images()
+
+    # ── Model ────────────────────────────────────────────────────────────────
+    def _load_model(self):
         config_path = "models/model_config.json"
         with open(config_path, "r", encoding="utf-8") as f:
             self.config = json.load(f)
         self.idx_to_class = {v: k for k, v in self.config["class_to_idx"].items()}
+
         self.model = SimpleModel()
         self.model.load_state_dict(torch.load("models/simple_model_weights.pth"))
         self.model.eval()
@@ -66,125 +90,216 @@ class AmharicAIChat(ctk.CTk):
             transforms.Resize((self.config["image_height"], self.config["image_width"])),
             transforms.ToTensor()
         ])
-        
-    def add_assistant_message(self, text, is_warning=False):
-        msg_frame = ctk.CTkFrame(self.chat_frame, fg_color="#F7F7F8", corner_radius=0)
-        msg_frame.pack(fill="x", padx=40, pady=10)
-        
-        icon = "⚠️" if is_warning else "🤖"
-        color = "#D9534F" if is_warning else "#10A37F"
-        
-        icon_lbl = ctk.CTkLabel(msg_frame, text=icon, font=ctk.CTkFont(size=24), text_color=color, width=40)
-        icon_lbl.pack(side="left", anchor="n", padx=(0, 10))
-        
-        text_lbl = ctk.CTkLabel(msg_frame, text=text, font=ctk.CTkFont(size=14), text_color="#343541", justify="left", wraplength=700)
-        text_lbl.pack(side="left", anchor="n", pady=5)
-        
-        # Scroll to bottom
-        self.after(50, self.scroll_to_bottom)
-        return msg_frame, text_lbl
-        
-    def add_user_message(self, img_path):
-        msg_frame = ctk.CTkFrame(self.chat_frame, fg_color="#FFFFFF", corner_radius=0)
-        msg_frame.pack(fill="x", padx=40, pady=10)
-        
-        icon_lbl = ctk.CTkLabel(msg_frame, text="👤", font=ctk.CTkFont(size=24), text_color="#555555", width=40)
-        icon_lbl.pack(side="left", anchor="n", padx=(0, 10))
-        
-        img = Image.open(img_path).resize((64, 64), Image.Resampling.LANCZOS)
-        ctk_img = ctk.CTkImage(light_image=img, size=(64, 64))
-        
-        img_lbl = ctk.CTkLabel(msg_frame, image=ctk_img, text="")
-        img_lbl.image = ctk_img
-        img_lbl.pack(side="left", anchor="n", pady=5)
-        
-        self.after(50, self.scroll_to_bottom)
-        
-    def prompt_user_for_image(self):
-        msg_frame, _ = self.add_assistant_message("I am ready. Here are 5 random images from the dataset. Please click one to analyze:")
-        
-        # Add images below the message
+
+    # ── Left Panel ───────────────────────────────────────────────────────────
+    def _build_left_panel(self):
+        self.left = ctk.CTkFrame(self, fg_color=SURFACE, corner_radius=0,
+                                  border_width=1, border_color=BORDER)
+        self.left.grid(row=0, column=0, sticky="nsew")
+        self.left.grid_propagate(False)
+        self.left.configure(width=340)
+
+        # Title area
+        title_area = ctk.CTkFrame(self.left, fg_color="transparent")
+        title_area.pack(fill="x", padx=24, pady=(28, 0))
+
+        ctk.CTkLabel(title_area, text="Select an Image",
+                     font=FONT_HEADING, text_color=TEXT_PRIMARY,
+                     anchor="w").pack(anchor="w")
+        ctk.CTkLabel(title_area,
+                     text="5 random samples from the dataset.\nClick one to run inference.",
+                     font=FONT_SMALL, text_color=TEXT_MUTED,
+                     anchor="w", justify="left").pack(anchor="w", pady=(4, 0))
+
+        # Thin separator
+        sep = ctk.CTkFrame(self.left, fg_color=BORDER, height=1)
+        sep.pack(fill="x", padx=24, pady=(20, 0))
+
+        # Image grid – 5 images arranged vertically as cards
+        self.card_container = ctk.CTkFrame(self.left, fg_color="transparent")
+        self.card_container.pack(fill="both", expand=True, padx=24, pady=(16, 8))
+
+        # Shuffle button pinned to bottom
+        btn_area = ctk.CTkFrame(self.left, fg_color="transparent")
+        btn_area.pack(fill="x", padx=24, pady=(0, 24))
+
+        self.shuffle_btn = ctk.CTkButton(
+            btn_area, text="↻  Shuffle", font=FONT_BODY,
+            fg_color=BG, text_color=TEXT_PRIMARY,
+            hover_color=BORDER, border_width=1, border_color=BORDER,
+            corner_radius=8, height=40,
+            command=self._shuffle_images)
+        self.shuffle_btn.pack(fill="x")
+
+    # ── Right Panel ──────────────────────────────────────────────────────────
+    def _build_right_panel(self):
+        self.right = ctk.CTkFrame(self, fg_color=BG, corner_radius=0)
+        self.right.grid(row=0, column=1, sticky="nsew")
+
+        # Center wrapper
+        self.center = ctk.CTkFrame(self.right, fg_color="transparent")
+        self.center.place(relx=0.5, rely=0.5, anchor="center")
+
+        self._show_empty_state()
+
+    def _clear_center(self):
+        for w in self.center.winfo_children():
+            w.destroy()
+
+    def _show_empty_state(self):
+        self._clear_center()
+        ctk.CTkLabel(self.center, text="No image selected",
+                     font=FONT_SUBTITLE, text_color=TEXT_MUTED).pack(pady=(0, 6))
+        ctk.CTkLabel(self.center,
+                     text="Pick a sample from the left panel to begin.",
+                     font=FONT_SMALL, text_color=TEXT_MUTED).pack()
+
+    def _show_loading(self):
+        self._clear_center()
+        self.loading_label = ctk.CTkLabel(self.center, text="Analyzing",
+                                          font=FONT_SUBTITLE,
+                                          text_color=TEXT_SECONDARY)
+        self.loading_label.pack(pady=(0, 12))
+
+        self.progress = ctk.CTkProgressBar(self.center, width=220,
+                                            progress_color=ACCENT,
+                                            fg_color=BORDER)
+        self.progress.set(0)
+        self.progress.pack()
+
+    def _show_result(self, char, conf, logits_list, probs_list, source_file, true_label):
+        self._clear_center()
+
+        is_low = conf < 80.0
+
+        # ── Result card ──────────────────────────────────────────────────
+        card = ctk.CTkFrame(self.center, fg_color=SURFACE,
+                            corner_radius=16, border_width=1,
+                            border_color=BORDER)
+        card.pack(padx=20, pady=10)
+
+        inner = ctk.CTkFrame(card, fg_color="transparent")
+        inner.pack(padx=36, pady=32)
+
+        # Status pill
+        pill_bg = DANGER_LIGHT if is_low else ACCENT_LIGHT
+        pill_fg = DANGER if is_low else ACCENT
+        pill_text = "Low confidence" if is_low else "High confidence"
+
+        pill = ctk.CTkLabel(inner, text=f"  {pill_text}  ",
+                            font=FONT_TINY, text_color=pill_fg,
+                            fg_color=pill_bg, corner_radius=10, height=22)
+        pill.pack(pady=(0, 16))
+
+        # Predicted character – large
+        ctk.CTkLabel(inner, text=char, font=FONT_CHAR,
+                     text_color=TEXT_PRIMARY).pack()
+
+        ctk.CTkLabel(inner, text="Predicted Character",
+                     font=FONT_SMALL, text_color=TEXT_MUTED).pack(pady=(2, 20))
+
+        # Thin line
+        ctk.CTkFrame(inner, fg_color=BORDER, height=1).pack(fill="x", pady=(0, 20))
+
+        # Confidence section
+        conf_color = DANGER if is_low else ACCENT
+
+        ctk.CTkLabel(inner, text=f"{conf:.1f}%", font=FONT_CONF,
+                     text_color=conf_color).pack()
+
+        bar = ctk.CTkProgressBar(inner, width=200, height=6,
+                                  progress_color=conf_color,
+                                  fg_color=BORDER, corner_radius=3)
+        bar.set(conf / 100.0)
+        bar.pack(pady=(6, 4))
+
+        ctk.CTkLabel(inner, text="Model Confidence",
+                     font=FONT_SMALL, text_color=TEXT_MUTED).pack(pady=(0, 20))
+
+        # Thin line
+        ctk.CTkFrame(inner, fg_color=BORDER, height=1).pack(fill="x", pady=(0, 16))
+
+        # Developer details
+        ctk.CTkLabel(inner, text="Developer Details", font=("Segoe UI", 11, "bold"),
+                     text_color=TEXT_SECONDARY, anchor="w").pack(anchor="w")
+
+        details = (
+            f"Source:   {source_file}\n"
+            f"Label:    {true_label}\n"
+            f"Logits:   {logits_list}\n"
+            f"Probs:    {probs_list}"
+        )
+        ctk.CTkLabel(inner, text=details, font=FONT_MONO,
+                     text_color=TEXT_MUTED, justify="left",
+                     anchor="w").pack(anchor="w", pady=(6, 0))
+
+    # ── Image Cards ──────────────────────────────────────────────────────────
+    def _shuffle_images(self):
+        for w in self.card_container.winfo_children():
+            w.destroy()
+
+        self.thumb_refs = []
         images = get_random_images(5)
-        if not images:
-            self.add_assistant_message("Error: No images found in data/ directory.", is_warning=True)
-            return
-            
-        img_container = ctk.CTkFrame(msg_frame, fg_color="transparent")
-        img_container.pack(anchor="w", padx=50, pady=10)
-        
-        self.selection_buttons = []
+
         for path in images:
-            img = Image.open(path).resize((64, 64), Image.Resampling.LANCZOS)
-            ctk_img = ctk.CTkImage(light_image=img, size=(64, 64))
-            
-            btn = ctk.CTkButton(img_container, image=ctk_img, text="", width=64, height=64, 
-                                fg_color="#E5E5E5", hover_color="#D1D5DB",
-                                command=lambda p=path: self.on_image_selected(p))
-            btn.pack(side="left", padx=10)
-            self.selection_buttons.append(btn)
-            
-    def on_image_selected(self, path):
-        # Disable buttons so user can't click multiple
-        for btn in self.selection_buttons:
-            btn.configure(state="disabled")
-            
-        self.add_user_message(path)
-        
-        # Create a placeholder "Analyzing..." message
-        analysis_frame, text_lbl = self.add_assistant_message("Analyzing features...")
-        
-        # Run inference progressively in a thread
-        threading.Thread(target=self.run_inference_progressive, args=(path, text_lbl, analysis_frame)).start()
-        
-    def run_inference_progressive(self, image_path, text_lbl, analysis_frame):
-        # Fake delay for "progressive" feeling
-        time.sleep(0.8)
-        self.after(0, lambda: text_lbl.configure(text="Applying Softmax probabilities..."))
-        time.sleep(0.8)
-        
-        # Real inference
+            img = Image.open(path).convert("RGB").resize((48, 48), Image.Resampling.LANCZOS)
+            ctk_img = ctk.CTkImage(light_image=img, size=(48, 48))
+            self.thumb_refs.append(ctk_img)
+
+            card = ctk.CTkButton(
+                self.card_container,
+                text=f"  {path.parent.name}  /  {path.name}",
+                image=ctk_img,
+                compound="left",
+                anchor="w",
+                font=FONT_SMALL,
+                text_color=TEXT_SECONDARY,
+                fg_color="transparent",
+                hover_color=ACCENT_LIGHT,
+                corner_radius=10,
+                height=56,
+                command=lambda p=path: self._on_select(p))
+            card.pack(fill="x", pady=3)
+
+        self._show_empty_state()
+
+    def _on_select(self, path):
+        self._show_loading()
+        threading.Thread(target=self._run_inference, args=(path,), daemon=True).start()
+
+    def _run_inference(self, image_path):
+        # Smooth progress animation
+        for i in range(1, 6):
+            time.sleep(0.15)
+            self.after(0, lambda v=i/10: self.progress.set(v))
+
+        self.after(0, lambda: self.loading_label.configure(text="Running model"))
+
         img = Image.open(image_path)
         tensor = self.transform(img).unsqueeze(0)
-        
+
         with torch.no_grad():
             logits = self.model(tensor)
-            
+
         probs = F.softmax(logits, dim=1)
         top_prob, top_idx = torch.max(probs, dim=1)
-        
+
         char = self.idx_to_class[top_idx.item()]
         conf = top_prob.item() * 100
-        
-        is_warning = conf < 80.0
-        final_text = f"**Prediction:** {char}\n**Confidence:** {conf:.1f}%\n\n"
-        
-        dev_info = (
-            f"Developer Logs:\n"
-            f"• Source File: {os.path.basename(image_path)}\n"
-            f"• True Label: {image_path.parent.name}\n"
-            f"• Raw Logits: {[round(float(x), 2) for x in logits.numpy()[0]]}\n"
-            f"• Probabilities: {[round(float(x), 3) for x in probs.numpy()[0]]}"
-        )
-        
-        final_text += dev_info
-        
-        # Update the UI
-        self.after(0, self.finalize_analysis, text_lbl, final_text, is_warning)
-        
-    def finalize_analysis(self, text_lbl, final_text, is_warning):
-        text_lbl.configure(text=final_text)
-        if is_warning:
-            text_lbl.configure(text_color="#D9534F")
-            
-        # Provide a button to analyze another
-        btn = ctk.CTkButton(self.chat_frame, text="Analyze Another Image", fg_color="#10A37F", hover_color="#0B7A5E",
-                            command=self.prompt_user_for_image)
-        btn.pack(pady=20)
-        self.scroll_to_bottom()
-        
-    def scroll_to_bottom(self):
-        self.chat_frame._parent_canvas.yview_moveto(1.0)
+
+        for i in range(6, 11):
+            time.sleep(0.1)
+            self.after(0, lambda v=i/10: self.progress.set(v))
+
+        logits_list = [round(float(x), 2) for x in logits.numpy()[0]]
+        probs_list = [round(float(x), 3) for x in probs.numpy()[0]]
+        src = os.path.basename(image_path)
+        lbl = image_path.parent.name
+
+        time.sleep(0.2)
+        self.after(0, self._show_result, char, conf, logits_list, probs_list, src, lbl)
+
 
 if __name__ == "__main__":
-    app = AmharicAIChat()
+    app = AmharicAIApp()
     app.mainloop()
