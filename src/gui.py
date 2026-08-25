@@ -83,7 +83,15 @@ class AmharicAIApp(ctk.CTk):
         self.idx_to_class = {v: k for k, v in self.config["class_to_idx"].items()}
 
         self.model = SimpleModel()
-        self.model.load_state_dict(torch.load("models/simple_model_weights.pth"))
+        
+        best_weights_path = "models/best_model_weights.pth"
+        legacy_weights_path = "models/simple_model_weights.pth"
+        
+        if os.path.exists(best_weights_path):
+            self.model.load_state_dict(torch.load(best_weights_path))
+        else:
+            self.model.load_state_dict(torch.load(legacy_weights_path))
+            
         self.model.eval()
         self.transform = transforms.Compose([
             transforms.Grayscale(num_output_channels=1),
@@ -184,6 +192,7 @@ class AmharicAIApp(ctk.CTk):
 
         epochs = self.config.get("epochs_trained", 100)
         test_acc = self.config.get("test_accuracy", 66.63)
+        best_val = self.config.get("best_val_accuracy", "N/A")
         dataset_size = 6000
         total_forward_passes = epochs * dataset_size
         
@@ -198,8 +207,9 @@ class AmharicAIApp(ctk.CTk):
             ("Total Parameters", f"{model_params:,} saved weights"),
             ("Total Epochs", f"{epochs} complete cycles"),
             ("Images Processed", f"~{total_forward_passes:,} forward passes"),
+            ("Best Val Accuracy", f"{best_val}%"),
             ("Final Eval Accuracy", f"{test_acc}%"),
-            ("Plateau Indicator", "Needs tracking vs previous epochs"),
+
         ]
 
         for label, value in lines:
