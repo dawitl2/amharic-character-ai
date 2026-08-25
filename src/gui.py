@@ -358,19 +358,6 @@ class AmharicAIApp(ctk.CTk):
 
         is_low = conf < 80.0
         is_correct = (char == true_label)
-        
-        # Session tracking hook
-        if hasattr(self, 'session_active') and self.session_active:
-            self.session_current += 1
-            if is_correct:
-                self.session_correct += 1
-                
-            self._update_session_banner()
-            
-            if self.session_current >= self.session_target:
-                self.session_active = False  # Prevent multiple triggers
-                # Give the user a moment to see the final result before showing the summary
-                self.after(1500, self._end_session)
 
         # ── Result card ──────────────────────────────────────────────────
         card = ctk.CTkFrame(self.center, fg_color=SURFACE,
@@ -554,7 +541,7 @@ class AmharicAIApp(ctk.CTk):
         if self._inference_id == inf_id:
             self.after(0, self._show_result, char, conf, logits_list, probs_list, src, lbl, image_path)
 
-    # ── Manual Test Session ──────────────────────────────────────────────────
+    # ── Visual Test Session ──────────────────────────────────────────────────
     def _toggle_test_session(self):
         if self.test_session_var.get():
             self.test_count_entry.configure(state="normal")
@@ -581,12 +568,75 @@ class AmharicAIApp(ctk.CTk):
         
         self._update_session_banner()
         self.session_banner.place(relx=0.5, y=24, anchor="n")
-        self._show_empty_state()
         
+        if not hasattr(self, '_inference_id'):
+            self._inference_id = 0
+        self._inference_id += 1
+        
+        # Start the background visual loop
+        threading.Thread(target=self._run_visual_test_loop, args=(count, self._inference_id), daemon=True).start()
+
+    def _run_visual_test_loop(self, count, inf_id):
+        images = get_random_images(count)
+        for img_path in images:
+            if self._inference_id != inf_id or not getattr(self, 'session_active', False):
+                return # cancelled
+            
+            # Show loading UI
+            self.after(0, self._show_loading)
+            
+            # Brief pause to simulate starting
+            time.sleep(0.3)
+            if self._inference_id != inf_id: return
+            
+            self.after(0, lambda: self.loading_label.configure(text="Evaluating next image..."))
+            for i in range(1, 6):
+                time.sleep(0.05)
+                if self._inference_id == inf_id:
+                    self.after(0, lambda v=i/10: self.progress.set(v))
+
+            # Run inference
+            img = Image.open(img_path).convert("RGB")
+            tensor = self.transform(img).unsqueeze(0)
+
+            with torch.no_grad():
+                logits = self.model(tensor)
+
+            probs = F.softmax(logits, dim=1)
+            top_prob, top_idx = torch.max(probs, dim=1)
+
+            char = self.idx_to_class[top_idx.item()]
+            conf = top_prob.item() * 100
+
+            for i in range(6, 11):
+                time.sleep(0.05)
+                if self._inference_id == inf_id:
+                    self.after(0, lambda v=i/10: self.progress.set(v))
+
+            logits_list = [round(float(x), 2) for x in logits.numpy()[0]]
+            probs_list = [round(float(x), 3) for x in probs.numpy()[0]]
+            src = os.path.basename(img_path)
+            lbl = img_path.parent.name
+            
+            if char == lbl:
+                self.session_correct += 1
+            self.session_current += 1
+
+            if self._inference_id == inf_id:
+                # Update UI with result
+                self.after(0, self._show_result, char, conf, logits_list, probs_list, src, lbl, img_path)
+                self.after(0, self._update_session_banner)
+            
+            # Wait for user to look at the result before proceeding
+            time.sleep(1.8)
+            
+        if self._inference_id == inf_id:
+            self.after(0, self._end_session)
+
     def _update_session_banner(self):
         remaining = self.session_target - self.session_current
         wrong = self.session_current - self.session_correct
-        text = f"Test Session: {self.session_current} / {self.session_target}  |  Correct: {self.session_correct}  |  Wrong: {wrong}  |  Remaining: {remaining}"
+        text = f"Visual Test Mode: {self.session_current} / {self.session_target}  |  Correct: {self.session_correct}  |  Wrong: {wrong}  |  Remaining: {remaining}"
         self.session_label.configure(text=text)
         
     def _end_session(self, show_results=True):
