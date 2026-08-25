@@ -136,19 +136,79 @@ class AmharicAIApp(ctk.CTk):
         self.right = ctk.CTkFrame(self, fg_color=BG, corner_radius=0)
         self.right.grid(row=0, column=1, sticky="nsew")
 
-        # Gear button (top-right corner)
-        gear_btn = ctk.CTkButton(self.right, text="⚙", width=36, height=36,
-                                  font=("Segoe UI", 18),
-                                  fg_color="transparent", text_color=TEXT_MUTED,
-                                  hover_color=BORDER, corner_radius=8,
-                                  command=self._show_settings)
-        gear_btn.place(relx=1.0, x=-16, y=16, anchor="ne")
+        # Top-right header buttons
+        header_btns = ctk.CTkFrame(self.right, fg_color="transparent")
+        header_btns.place(relx=1.0, x=-16, y=16, anchor="ne")
+
+        ctk.CTkButton(header_btns, text="📊 Stats", width=70, height=32,
+                      font=("Segoe UI", 12, "bold"),
+                      fg_color="transparent", text_color=TEXT_MUTED,
+                      hover_color=BORDER, corner_radius=6,
+                      command=self._show_stats).pack(side="left", padx=(0, 8))
+
+        ctk.CTkButton(header_btns, text="ℹ Info", width=60, height=32,
+                      font=("Segoe UI", 12, "bold"),
+                      fg_color="transparent", text_color=TEXT_MUTED,
+                      hover_color=BORDER, corner_radius=6,
+                      command=self._show_settings).pack(side="left")
 
         # Center wrapper
         self.center = ctk.CTkFrame(self.right, fg_color="transparent")
         self.center.place(relx=0.5, rely=0.5, anchor="center")
 
         self._show_empty_state()
+
+    def _show_stats(self):
+        """Renders training statistics inline in the right panel."""
+        self._clear_center()
+
+        top_row = ctk.CTkFrame(self.center, fg_color="transparent")
+        top_row.pack(fill="x", pady=(0, 4))
+        ctk.CTkButton(top_row, text="✕  Back", width=80, height=32,
+                      font=FONT_SMALL, fg_color="transparent",
+                      text_color=TEXT_MUTED, hover_color=BORDER,
+                      corner_radius=6,
+                      command=self._show_empty_state).pack(anchor="w")
+
+        card = ctk.CTkFrame(self.center, fg_color=SURFACE,
+                            corner_radius=16, border_width=1,
+                            border_color=BORDER)
+        card.pack(padx=20, pady=(0, 10))
+
+        inner = ctk.CTkFrame(card, fg_color="transparent")
+        inner.pack(padx=32, pady=28)
+
+        ctk.CTkLabel(inner, text="Training Statistics",
+                     font=FONT_HEADING, text_color=TEXT_PRIMARY).pack(anchor="w")
+        ctk.CTkFrame(inner, fg_color=BORDER, height=1).pack(fill="x", pady=(8, 14))
+
+        epochs = self.config.get("epochs_trained", 100)
+        test_acc = self.config.get("test_accuracy", 66.63)
+        dataset_size = 6000
+        total_forward_passes = epochs * dataset_size
+        
+        # SimpleModel: Linear(64*64, 3) = 4096 * 3 + 3 = 12291
+        model_params = 12291
+
+        import datetime
+        today = datetime.datetime.now().strftime("%B %d, %Y")
+
+        lines = [
+            ("Date", today),
+            ("Total Parameters", f"{model_params:,} saved weights"),
+            ("Total Epochs", f"{epochs} complete cycles"),
+            ("Images Processed", f"~{total_forward_passes:,} forward passes"),
+            ("Final Eval Accuracy", f"{test_acc}%"),
+            ("Plateau Indicator", "Needs tracking vs previous epochs"),
+        ]
+
+        for label, value in lines:
+            row = ctk.CTkFrame(inner, fg_color="transparent")
+            row.pack(fill="x", pady=4)
+            ctk.CTkLabel(row, text=label, font=("Segoe UI", 11, "bold"),
+                         text_color=TEXT_SECONDARY, width=130, anchor="w").pack(side="left")
+            ctk.CTkLabel(row, text=value, font=FONT_SMALL,
+                         text_color=TEXT_PRIMARY, anchor="w").pack(side="left", padx=(8, 0))
 
     def _show_settings(self):
         """Renders project status information inline in the right panel."""
