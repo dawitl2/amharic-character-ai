@@ -600,57 +600,8 @@ A CNN should be significantly better suited to recognizing visual structures suc
 
 ---
 
-# Long-Term Vision
 
-The project can expand through several stages.
 
-## Stage 1 — Isolated Printed Characters
-
-Recognize individual Ethiopic characters from clean generated images.
-
-## Stage 2 — Larger Character Set
-
-Expand beyond the initial three characters.
-
-## Stage 3 — Stronger Synthetic Dataset
-
-Introduce more fonts, positions, scales, distortions, and realistic image variation.
-
-## Stage 4 — Handwritten Character Recognition
-
-Collect samples from multiple writers and train the model to recognize handwriting.
-
-## Stage 5 — Character Detection and Segmentation
-
-Locate individual characters inside larger images.
-
-## Stage 6 — Word Recognition
-
-Recognize complete Amharic words rather than isolated characters.
-
-## Stage 7 — Line Recognition
-
-Process entire lines of Amharic text.
-
-## Stage 8 — Full Amharic OCR
-
-Convert photographs, scanned pages, documents, or signs into machine-readable Amharic text.
-
-## Stage 9 — Language-Aware OCR
-
-Combine computer vision with natural-language processing.
-
-The visual model may occasionally be uncertain between visually similar characters.
-
-A future language model could use surrounding characters and words to determine which interpretation makes linguistic sense.
-
-```text
-computer vision
-+
-Amharic language model
-↓
-context-aware OCR
-```
 
 ---
 
