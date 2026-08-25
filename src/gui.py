@@ -10,6 +10,7 @@ import torch
 import torchvision.transforms as transforms
 import torch.nn.functional as F
 import customtkinter as ctk
+import tkinter.filedialog as fd
 
 sys.stdout.reconfigure(encoding='utf-8')
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -130,6 +131,14 @@ class AmharicAIApp(ctk.CTk):
         # Shuffle button pinned to bottom
         btn_area = ctk.CTkFrame(self.left, fg_color="transparent")
         btn_area.pack(fill="x", padx=24, pady=(0, 24))
+
+        self.upload_btn = ctk.CTkButton(
+            btn_area, text="📁  Upload Image", font=FONT_BODY,
+            fg_color=BG, text_color=TEXT_PRIMARY,
+            hover_color=BORDER, border_width=1, border_color=BORDER,
+            corner_radius=8, height=40,
+            command=self._upload_image)
+        self.upload_btn.pack(fill="x", pady=(0, 8))
 
         self.shuffle_btn = ctk.CTkButton(
             btn_area, text="↻  Shuffle", font=FONT_BODY,
@@ -357,7 +366,8 @@ class AmharicAIApp(ctk.CTk):
         self._clear_center()
 
         is_low = conf < 80.0
-        is_correct = (char == true_label)
+        is_known = true_label in self.config.get("class_to_idx", {})
+        is_correct = (char == true_label) if is_known else False
 
         # ── Result card ──────────────────────────────────────────────────
         card = ctk.CTkFrame(self.center, fg_color=SURFACE,
@@ -442,13 +452,20 @@ class AmharicAIApp(ctk.CTk):
         ctk.CTkLabel(inner, text="Outcome", font=("Segoe UI", 11, "bold"),
                      text_color=TEXT_SECONDARY, anchor="w").pack(anchor="w")
                      
-        is_correct = (char == true_label)
-        result_text = "CORRECT" if is_correct else "WRONG"
-        result_color = "#10B981" if is_correct else DANGER
+        is_known = true_label in self.config.get("class_to_idx", {})
+        if is_known:
+            is_correct = (char == true_label)
+            result_text = "CORRECT" if is_correct else "WRONG"
+            result_color = "#10B981" if is_correct else DANGER
+            ans_text = true_label
+        else:
+            result_text = "UNKNOWN (User Upload)"
+            result_color = TEXT_MUTED
+            ans_text = "N/A"
 
         outcome = (
             f"Prediction:     {char}\n"
-            f"Correct Answer: {true_label}\n"
+            f"Correct Answer: {ans_text}\n"
             f"Confidence:     {conf:.1f}%\n"
             f"Result:         {result_text}"
         )
@@ -494,6 +511,14 @@ class AmharicAIApp(ctk.CTk):
             card.pack(pady=4)
 
         self._show_empty_state()
+
+    def _upload_image(self):
+        file_path = fd.askopenfilename(
+            title="Select an Image",
+            filetypes=[("Image files", "*.png *.jpg *.jpeg *.bmp"), ("All files", "*.*")]
+        )
+        if file_path:
+            self._on_select(Path(file_path))
 
     def _on_select(self, path):
         # Cancel any previous thread's UI updates by incrementing ID
