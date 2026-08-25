@@ -71,12 +71,41 @@ model = SimpleModel()
 loss_fn = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=LEARNING_RATE)
 
+# --- Safety Check & Resume Logic ---
+start_epoch = 1
 best_val_acc = 0.0
+cumulative_epochs = 0
 
+if os.path.exists(CONFIG_PATH):
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        old_config = json.load(f)
+    
+    # Safety Check: Architecture and Classes must match
+    if old_config.get("architecture") != "SimpleModel (Flatten -> Linear)":
+        print("⚠️  WARNING: Architecture mismatch! Expected SimpleModel. Aborting.")
+        sys.exit(1)
+    
+    if old_config.get("class_to_idx") != dataset.class_to_idx:
+        print("⚠️  WARNING: Class mapping mismatch! The dataset classes have changed. Aborting to prevent corrupting weights.")
+        sys.exit(1)
+        
+    cumulative_epochs = old_config.get("epochs_trained", 0)
+
+if os.path.exists(LATEST_CHECKPOINT):
+    print(f"Resuming from {LATEST_CHECKPOINT}...")
+    checkpoint = torch.load(LATEST_CHECKPOINT)
+    model.load_state_dict(checkpoint["model_state_dict"])
+    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    best_val_acc = checkpoint.get("best_val_acc", 0.0)
+    print(f"Loaded previous state. Best Validation Accuracy so far: {best_val_acc:.2f}%")
+else:
+    print("Starting training from scratch with random weights.")
+
+print()
 print(f"{'Epoch':>6} | {'Train Acc':>10} | {'Val Acc':>10} | {'Train Loss':>11}")
 print("-" * 50)
 
-for epoch in range(1, NUM_EPOCHS + 1):
+for epoch in range(start_epoch, NUM_EPOCHS_TO_RUN + 1):
     # Train
     model.train()
     train_correct = 0
