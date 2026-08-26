@@ -164,7 +164,7 @@ class AmharicAIApp(ctk.CTk):
         ).pack(fill="x")
 
         self.sample_list = ctk.CTkScrollableFrame(
-            content, fg_color=BACKGROUND, corner_radius=4, height=205
+            content, fg_color=BACKGROUND, corner_radius=4, height=135
         )
         self.sample_list.pack(fill="x", pady=12)
 
@@ -228,7 +228,7 @@ class AmharicAIApp(ctk.CTk):
         self.run_test_button.pack(side="right")
         self.test_output = ctk.CTkTextbox(
             content,
-            height=115,
+            height=85,
             fg_color=BACKGROUND,
             border_width=1,
             border_color=BORDER,
@@ -340,12 +340,14 @@ class AmharicAIApp(ctk.CTk):
         )
         for name, value in rows:
             row = ctk.CTkFrame(content, fg_color="transparent")
-            row.pack(fill="x", pady=4)
-            ctk.CTkLabel(row, text=name, font=("Segoe UI", 11), text_color=MUTED, anchor="w").pack(side="left")
+            row.pack(fill="x", pady=1)
+            ctk.CTkLabel(
+                row, text=name, font=("Segoe UI", 10), text_color=MUTED, anchor="w", height=20
+            ).pack(side="left")
             ctk.CTkLabel(
                 row,
                 text=str(value),
-                font=("Segoe UI", 11, "bold"),
+                font=("Segoe UI", 10, "bold"),
                 text_color=TEXT,
                 anchor="e",
                 wraplength=155,
@@ -411,7 +413,7 @@ class AmharicAIApp(ctk.CTk):
             self.sample_images.append(ctk_image)
             ctk.CTkButton(
                 self.sample_list,
-                text=f"{label}   {path.name}",
+                text=f"{label}   {path.name[:21]}{'…' if len(path.name) > 21 else ''}",
                 image=ctk_image,
                 compound="left",
                 anchor="w",
