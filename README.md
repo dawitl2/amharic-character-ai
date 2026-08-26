@@ -1,671 +1,120 @@
-# Amharic Character Recognition AI
+# Amharic / Ethiopic Character Recognition
 
-A supervised machine-learning project for building an Amharic/Ethiopic character recognition system from the ground up using Python and PyTorch.
+A learning-oriented PyTorch project for classifying ten Ethiopic characters with one active convolutional neural network and a small desktop research interface.
 
-The purpose of this project is not simply to produce a working OCR application. The main objective is to understand how an artificial neural network actually learns: how images become numbers, how those numbers pass through a model, how predictions are produced, how mistakes are measured, and how the model gradually changes itself through training.
-
-The project intentionally begins at a very small scale and grows step by step.
-
----
-
-## Project Goal
-
-The first goal is simple:
-
-```text
-Image containing one Ethiopic character
-              ↓
-         Neural Network
-              ↓
-        Predicted Character
-```
-
-For example:
-
-```text
-Input image: ሀ
-
-Model prediction:
-ሀ
-```
-
-The initial model only recognizes a very small set of characters:
-
-```text
-ሀ
-ለ
-መ
-```
-
-These classes are currently represented numerically as:
-
-```text
-ሀ → 0
-ለ → 1
-መ → 2
-```
-
-The project will gradually expand after the basic learning pipeline works correctly.
-
----
-
-## Interactive Interface
-
-As part of Phase 21, the project now features a modern, responsive Graphical User Interface (GUI) built with `customtkinter`. The interface allows users to sample images from the dataset and run real-time inference, displaying predicted characters alongside model confidence percentages and raw developer metrics.
-
-![Amharic OCR Interface](image.png)
-
----
-
-# Why This Project Exists
-
-Modern AI tools make it possible to build applications without deeply understanding the machine-learning systems behind them.
-
-This project deliberately takes the opposite approach.
-
-The goal is to understand the complete pipeline:
-
-```text
-raw image
-↓
-pixels
-↓
-tensor
-↓
-dataset
-↓
-labels
-↓
-batch
-↓
-neural network
-↓
-logits
-↓
-prediction
-↓
-loss
-↓
-gradients
-↓
-optimizer
-↓
-updated weights
-↓
-better prediction
-```
-
-Every important stage is being implemented and studied separately before it is combined into a complete training system.
-
----
-
-# Learning Type
-
-This project uses:
-
-## Supervised Learning
-
-In supervised learning, the model receives both:
-
-```text
-input
-+
-correct answer
-```
-
-For example:
-
-```text
-image of ሀ
-+
-label 0
-```
-
-The neural network produces its own prediction.
-
-The prediction is compared against the known correct answer.
-
-The difference is converted into a value called the **loss**.
-
-The model then uses gradients and an optimizer to modify its internal weights in a direction that should reduce that loss.
-
-The process repeats many times.
-
-```text
-image + label
-↓
-prediction
-↓
-loss
-↓
-backpropagation
-↓
-gradients
-↓
-weight update
-↓
-repeat
-```
-
-This is different from reinforcement learning, where an agent learns through actions, rewards, penalties, and interaction with an environment.
-
-Character classification does not require an agent or reward system because the correct answers are already available in the training dataset.
-
----
-
-# Current Dataset
-
-The current dataset contains three classes:
-
-```text
-data/
-├── ሀ/
-├── ለ/
-└── መ/
-```
-
-The folder itself acts as the label.
-
-For example:
-
-```text
-data/ሀ/synthetic_001.png
-```
-
-means:
-
-```text
-Input:
-synthetic_001.png
-
-Correct answer:
-ሀ
-```
-
-PyTorch converts these character labels into numerical classes:
-
-```text
-ሀ → 0
-ለ → 1
-መ → 2
-```
-
-The current experimental dataset contains approximately 33 images.
-
-It includes synthetic examples created using Ethiopic-compatible fonts and multiple font sizes.
-
-This dataset is intentionally tiny because the current objective is understanding the machine-learning pipeline rather than maximizing accuracy.
-
----
-
-# Synthetic Dataset Generation
-
-The project currently generates character images programmatically.
-
-A typical generation process is:
-
-```text
-create 64 × 64 image
-↓
-load Ethiopic font
-↓
-select character
-↓
-measure character
-↓
-center character
-↓
-draw character
-↓
-save PNG
-```
-
-The current generator uses fonts such as:
-
-```text
-Abyssinica SIL
-Nyala
-```
-
-and multiple font sizes.
-
-Future dataset generation may include:
-
-* different fonts
-* different character positions
-* rotation
-* controlled blur
-* brightness variation
-* noise
-* contrast variation
-* background variation
-* printing and scanning artifacts
-* compression artifacts
-* handwritten samples
-
-Synthetic transformations must remain realistic. An augmentation should never distort one Ethiopic character so severely that it becomes visually equivalent to another character.
-
----
-
-# Image Representation
-
-The current images are:
-
-```text
-64 × 64 pixels
-grayscale
-```
-
-A neural network does not actually see:
-
-```text
-ሀ
-```
-
-the way a human sees it.
-
-The image is converted into numbers.
-
-A grayscale pixel can be represented approximately as:
-
-```text
-0.0 → black
-1.0 → white
-```
-
-The image becomes a PyTorch tensor with the shape:
-
-```text
-[1, 64, 64]
-```
-
-which means:
-
-```text
-1  grayscale channel
-64 pixels high
-64 pixels wide
-```
-
-A batch of four images therefore has the shape:
-
-```text
-[4, 1, 64, 64]
-```
-
----
-
-# Dataset Splitting
-
-The current experimental dataset is divided into approximately:
-
-```text
-23 training images
-5 validation images
-5 test images
-```
-
-These sets serve different purposes.
-
-## Training Set
-
-The model learns from these images.
-
-## Validation Set
-
-Used during model development to see whether the model is learning patterns that generalize beyond its training examples.
-
-## Test Set
-
-Used as a final evaluation on images the model did not train on.
-
-A serious future dataset will require more careful splitting, particularly for handwritten samples. Samples from the same writer should not necessarily appear in both the training and test sets.
-
----
-
-# Current Neural Network
-
-The first model is intentionally extremely simple.
-
-```text
-64 × 64 image
-↓
-4096 pixel values
-↓
-Flatten
-↓
-Linear layer
-↓
-3 output scores
-```
-
-Because:
-
-```text
-64 × 64 = 4096
-```
-
-the first model receives 4096 numerical pixel values.
-
-It produces three output scores because there are currently three possible classes:
-
-```text
-ሀ
-ለ
-መ
-```
-
-These raw output scores are called **logits**.
-
-For example:
-
-```text
-[0.3, 1.8, 0.1]
-```
-
-could correspond to:
-
-```text
-ሀ → 0.3
-ለ → 1.8
-መ → 0.1
-```
-
-The largest logit currently represents the predicted class.
-
-Here:
-
-```text
-1.8
-```
-
-is the largest value, so the prediction would be:
-
-```text
-ለ
-```
-
----
-
-# Loss
-
-The correct answer is not another group of three numbers.
-
-The correct answer is one class label.
-
-For example:
-
-```text
-Correct label:
-1
-```
-
-means:
-
-```text
-ለ
-```
-
-The model might output:
-
-```text
-[0.3, 1.8, 0.1]
-```
-
-The loss function compares those model outputs against the known correct label.
-
-The project currently uses:
-
-```python
-CrossEntropyLoss
-```
-
-The result is one loss value.
-
-Conceptually:
-
-```text
-model prediction
-+
-correct answer
-↓
-loss
-```
-
-A smaller loss generally means the model's predictions are better aligned with the correct answers.
-
----
-
-# Backpropagation and Gradients
-
-After calculating loss, PyTorch can perform:
-
-```python
-loss.backward()
-```
-
-This performs backpropagation.
-
-Backpropagation calculates gradients.
-
-A gradient tells us how changing a particular value would affect the loss.
-
-Very approximately:
-
-```text
-increase this weight slightly
-decrease this weight slightly
-change this one more strongly
-change this one less strongly
-```
-
-Gradients do not update the neural network by themselves.
-
-They only provide the information necessary to determine how the weights should change.
-
-An optimizer will perform the actual parameter updates.
-
----
-
-# Current Project Status
-
-Completed:
-
-* Python environment setup
-* virtual environment
-* PyTorch installation
-* torchvision installation
-* NumPy installation
-* Pillow installation
-* Matplotlib installation
-* scikit-learn installation
-* Git repository setup
-* private GitHub repository
-* `.gitignore`
-* synthetic Ethiopic character generation
-* automatic character centering
-* class folders
-* image loading
-* image-to-tensor conversion
-* numerical class labels
-* dataset loading
-* train/validation/test splitting
-* DataLoader and batches
-* first neural-network architecture
-* forward pass
-* logits
-* class prediction
-* CrossEntropyLoss
-* backpropagation
-* gradient inspection
-
-Current position:
-
-```text
-Loss
-↓
-Backpropagation
-↓
-Gradients
-↓
-WE ARE HERE
-↓
-Optimizer
-↓
-Weight updates
-↓
-Training loop
-```
-
-The neural network has now successfully progressed through multiple training phases.
-
----
-
-# Training Metrics & Experiments
-
-During our experiments, we actively tracked loss and accuracy to understand how the model learns.
-
-### Overfitting Demonstration
-We intentionally forced the model to overfit on a tiny dataset to prove it possesses the capacity to memorize patterns. As the training loss reached zero, the validation loss diverged, clearly illustrating the overfitting phenomenon:
-
-![Overfitting Curve](overfitting_curve.png)
-
-### Large Dataset Training
-After scaling up to a 6,000-image augmented synthetic dataset, the model learned much more generalized features. Here is the learning curve showing stable convergence on a larger scale:
-
-![Large Dataset Curve](large_dataset_curve.png)
-
-### Error Analysis
-We also generated confusion matrices to understand exactly which characters the model struggles to differentiate:
-
-![Confusion Matrix](confusion_matrix.png)
-
----
-
-# Near-Term Goals
-
-The next major milestones are:
-
-1. Understand optimizers.
-2. Update model weights.
-3. Build the first complete training loop.
-4. Train using actual Ethiopic character images.
-5. Track loss over epochs.
-6. Track training accuracy.
-7. Evaluate validation accuracy.
-8. Evaluate test accuracy.
-9. Inspect incorrect predictions.
-10. Save the trained model.
-11. Load the trained model.
-12. Predict an unseen character image.
-
----
-
-# Future Model Architecture
-
-The current linear model is intentionally primitive.
-
-A future version will use a Convolutional Neural Network.
-
-Conceptually:
+## Active pipeline
 
 ```text
 image
-↓
-convolution
-↓
-feature maps
-↓
-activation
-↓
-pooling
-↓
-more learned features
-↓
-flatten
-↓
-fully connected layer
-↓
-character prediction
+→ shared grayscale preparation
+→ [1, 1, 64, 64] tensor
+→ CharacterCNN
+→ raw class logits
+→ softmax(logits, dim=1) for inference only
+→ character decoded with the checkpoint class_to_idx mapping
 ```
 
-A CNN should be significantly better suited to recognizing visual structures such as:
-
-* lines
-* curves
-* intersections
-* edges
-* character components
-* spatial patterns
-
----
-
-
-
-
----
-
-# Possible Advanced Projects Using These Skills
-
-The knowledge developed here could later support projects such as:
-
-* Amharic handwritten-note digitization
-* historical Ethiopian document digitization
-* searchable Amharic document archives
-* automatic transcription of scanned documents
-* Amharic educational tools
-* handwriting-learning applications
-* document information extraction
-* receipt and invoice recognition
-* Ethiopian identity/document processing systems
-* sign and street-text recognition
-* mobile Amharic OCR
-* accessibility tools
-* Amharic speech-to-text systems combined with NLP
-* multilingual Ethiopian-language AI systems
-* document translation pipelines
-* intelligent document search
-* visual question answering for Ethiopian documents
-* archive preservation systems
-* Amharic text correction systems
-* multimodal Ethiopian-language AI
-
----
-
-# Philosophy of the Project
-
-The primary measure of success is not simply accuracy.
-
-The goal is understanding.
-
-Every major component should eventually be explainable without relying on an AI assistant:
+The GUI, command-line prediction, automatic evaluation, and sanity diagnostics all load:
 
 ```text
-What is the input?
-
-Why is it represented this way?
-
-What does the neural network receive?
-
-What does the network output?
-
-What is a logit?
-
-What is loss?
-
-What is a gradient?
-
-What does backpropagation do?
-
-What does the optimizer change?
-
-Why does training improve predictions?
-
-How do we know the model generalizes?
-
-Where does the model fail?
-
-How could the system be improved?
+models/cnn_model_config.json
+models/best_cnn_model.pth
 ```
 
-The finished project should demonstrate not only that an AI system was built, but that the engineering and machine-learning principles behind it were understood.
+Loading is strict. Architecture, tensor names, input format, output count, preprocessing, and class mapping must agree. The application never falls back to random weights or the legacy linear model.
+
+## CNN architecture
+
+`CharacterCNN` contains two convolution/ReLU/max-pooling blocks followed by a 128-unit fully connected layer and one raw logit per class. The active input contract is 64 × 64 grayscale with values in `[0, 1]`; current normalization is the identity transform (mean `0`, standard deviation `1`).
+
+## Training
+
+Run from the repository root:
+
+```powershell
+.venv\Scripts\python.exe src\train.py
+```
+
+Documented defaults:
+
+- maximum cumulative epochs: 200
+- optimizer: SGD
+- learning rate: 0.01
+- batch size: 64
+- loss: `CrossEntropyLoss` on raw logits
+- scheduler: `ReduceLROnPlateau`, factor 0.5, patience 5, minimum LR 0.00001
+- early stopping: patience 15, minimum validation-accuracy change 0.05 percentage points
+- deterministic seed: 42
+- split: 70% training, 15% validation, 15% test
+
+`--max-epochs` is a cumulative ceiling, not a request for that many additional epochs. Training can finish earlier through early stopping. Run `src/train.py --help` for explicit overrides.
+
+Training saves:
+
+```text
+models/best_cnn_model.pth        best validation checkpoint
+models/latest_cnn_checkpoint.pth latest resumable state
+models/cnn_model_config.json     GUI-readable model metadata
+models/cnn_training_metrics.csv  per-epoch metrics
+models/cnn_data_split.json       deterministic split membership
+```
+
+The latest checkpoint includes model, optimizer, scheduler, cumulative epoch, best score, and early-stopping state.
+
+## Data split and validation limits
+
+The split manifest is deterministic and stratified. Exact normalized duplicates and files with explicit source/augmentation naming are assigned as groups, so a known family cannot cross splits.
+
+The current dataset was generated with a small shared set of fonts and procedural transformations. Its filenames do not preserve the generating font or an original-sample identifier. Therefore the measured validation/test accuracy is valid for held-out samples from the same synthetic generator distribution, but it is not evidence of equal performance on handwriting, camera images, scans, or unseen fonts. Future generators should save provenance such as `source_id`, font, writer, and augmentation parent so entire sources can be held out.
+
+## Diagnostics
+
+Run all three labeled splits separately:
+
+```powershell
+.venv\Scripts\python.exe sanity_test.py
+```
+
+Sample a smaller number from each split:
+
+```powershell
+.venv\Scripts\python.exe sanity_test.py --limit 100
+```
+
+Evaluate labeled external images arranged as `external/<character>/<image>`:
+
+```powershell
+.venv\Scripts\python.exe sanity_test.py --external-dir path\to\external
+```
+
+Training, validation, test, and external results are never combined. External accuracy is reported as N/A unless labeled examples are supplied.
+
+## Prediction and GUI
+
+```powershell
+.venv\Scripts\python.exe src\predict.py path\to\image.png
+.venv\Scripts\python.exe src\gui.py
+```
+
+Dataset images use the same shared resize/tensor path used by training. External images additionally receive whitespace removal and an aspect-preserving centered fit before that same tensor conversion. The GUI only shows CORRECT/WRONG when the image comes from the labeled dataset or the user supplies a label.
+
+## Legacy linear experiments
+
+The `LinearModel` and early phase scripts remain in the repository as learning history. They are not imported by the active CNN GUI, predictor, trainer, or diagnostics. Historical ambiguous artifacts such as `best_model_weights.pth`, `model_config.json`, and `simple_model_weights.pth` are not active model files.
+
+To migrate a known CNN state dict from the historical ambiguous names once, run:
+
+```powershell
+.venv\Scripts\python.exe src\migrate_cnn_checkpoint.py
+```
+
+The migration validates convolutional tensor names and output size before writing the explicit active CNN artifacts.
+
+## Tests
+
+```powershell
+.venv\Scripts\python.exe -m unittest discover -v
+.venv\Scripts\python.exe test_gui_script.py
+```
+
+The GUI smoke test confirms that one image passed directly through the inference engine and through the GUI produces identical logits, probabilities, prediction, and confidence.
