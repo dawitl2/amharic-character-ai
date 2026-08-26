@@ -62,7 +62,7 @@ def build_metadata(config: dict, source_weights: Path) -> dict:
             "seed": config.get("split_seed", 42),
             "note": "Migrated metrics describe the historical per-image random split.",
         },
-        "migration": {"source_weights": str(source_weights.resolve())},
+        "migration": {"source_weights": source_weights.name},
     }
 
 
