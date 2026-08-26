@@ -30,6 +30,10 @@ def predict_character(image_path):
         print(f"Error: {weights_path} not found.")
         sys.exit(1)
         
+    if "CNNModel" not in config.get("architecture", ""):
+        print("Error: The saved weights belong to the old Linear model, but predict.py expects the CNN model. Please run train.py first to train the CNN.")
+        sys.exit(1)
+
     model.load_state_dict(torch.load(weights_path))
     model.eval()
 

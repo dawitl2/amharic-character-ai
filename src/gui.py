@@ -97,7 +97,13 @@ class AmharicAIApp(ctk.CTk):
         best_weights_path = "models/best_model_weights.pth"
         
         if os.path.exists(best_weights_path):
-            self.model.load_state_dict(torch.load(best_weights_path))
+            if "CNNModel" in self.config.get("architecture", ""):
+                try:
+                    self.model.load_state_dict(torch.load(best_weights_path))
+                except RuntimeError as e:
+                    print(f"Warning: Architecture mismatch in weights. Using random weights. Error: {e}")
+            else:
+                print("Warning: The saved weights belong to the old Linear model, but the GUI now expects the CNN model. Please train the CNN first. Using random weights for now.")
         else:
             print("Warning: best_model_weights.pth not found. Model will output random predictions.")
             
@@ -333,6 +339,20 @@ class AmharicAIApp(ctk.CTk):
         # Back / close button row
         top_row = ctk.CTkFrame(self.center, fg_color="transparent")
         top_row.pack(fill="x", pady=(0, 4))
+
+        # Action Frame (Buttons)
+        self.action_frame = ctk.CTkFrame(self.center, fg_color="transparent")
+        self.action_frame.pack(fill="x", pady=(0, 4))
+
+        # Architecture Label
+        arch_text = self.config.get("architecture", "Unknown Model")
+        self.arch_label = ctk.CTkLabel(
+            self.action_frame, 
+            text=f"Loaded: {arch_text}", 
+            font=FONT_SMALL,
+            text_color=TEXT_MUTED
+        )
+        self.arch_label.pack(side="left", padx=10)
 
         ctk.CTkButton(top_row, text="✕  Back", width=80, height=32,
                       font=FONT_SMALL, fg_color="transparent",
