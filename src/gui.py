@@ -56,6 +56,12 @@ class AmharicAIApp(ctk.CTk):
                 name: [DATA_DIR / relative_path for relative_path in relative_paths]
                 for name, relative_paths in self.split_manifest["splits"].items()
             }
+            checkpoint_split = self.engine.bundle.metadata.get("split", {})
+            self.manifest_is_checkpoint_split = (
+                checkpoint_split.get("strategy") == self.split_manifest.get("strategy")
+                and checkpoint_split.get("dataset_signature")
+                == self.split_manifest.get("dataset_signature")
+            )
         except Exception as error:
             messagebox.showerror("CNN model could not be loaded", str(error))
             self.destroy()
@@ -147,7 +153,12 @@ class AmharicAIApp(ctk.CTk):
             self.left_panel, fg_color="transparent", corner_radius=0
         )
         content.pack(fill="both", expand=True, padx=16, pady=16)
-        self._section_title(content, "Image source", "Choose a held-out sample or an external image.")
+        source_note = (
+            "Choose a checkpoint split sample or an external image."
+            if self.manifest_is_checkpoint_split
+            else "Choose a manifest sample or external image. This checkpoint predates the manifest."
+        )
+        self._section_title(content, "Image source", source_note)
 
         self.split_var = ctk.StringVar(value="test")
         self.split_menu = ctk.CTkOptionMenu(
@@ -211,7 +222,7 @@ class AmharicAIApp(ctk.CTk):
         self.manual_label_menu.pack(fill="x")
 
         ctk.CTkFrame(content, fg_color=BORDER, height=1).pack(fill="x", pady=16)
-        self._section_title(content, "Automatic evaluation", "Random labeled samples from one explicit split.")
+        self._section_title(content, "Automatic evaluation", "Random labeled samples from one explicit partition.")
         options = ctk.CTkFrame(content, fg_color="transparent")
         options.pack(fill="x")
         self.test_count_var = ctk.StringVar(value="25")
@@ -530,7 +541,12 @@ class AmharicAIApp(ctk.CTk):
                 seed=random.randrange(1_000_000),
             )
             lines = [
-                f"Split: {split_name}",
+                f"Partition: {split_name}",
+                (
+                    "Held out from checkpoint: YES"
+                    if self.manifest_is_checkpoint_split
+                    else "Held out from checkpoint: NO (diagnostic only)"
+                ),
                 f"Correct: {result.correct}",
                 f"Wrong: {result.total - result.correct}",
                 f"Accuracy: {result.accuracy:.2f}%",
