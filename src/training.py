@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -11,7 +12,11 @@ import torch
 from torch.utils.data import DataLoader, Subset
 from torchvision.datasets import ImageFolder
 
-from checkpoints import CHECKPOINT_FORMAT_VERSION
+from checkpoints import (
+    CHECKPOINT_FORMAT_VERSION,
+    CheckpointCompatibilityError,
+    validate_cnn_metadata,
+)
 from cnn_model import ARCHITECTURE_NAME
 from data_splits import load_or_create_split_manifest, split_indices
 from preprocessing import CharacterTransform, PreprocessingSpec
@@ -192,3 +197,53 @@ def checkpoint_payload(
             "epochs_without_improvement": progress.epochs_without_improvement,
         },
     }
+
+
+def resume_training_state(
+    checkpoint_path: Path,
+    model,
+    optimizer,
+    scheduler,
+    data: TrainingData,
+    spec: PreprocessingSpec,
+    settings: TrainingSettings,
+    device: torch.device,
+) -> TrainingProgress:
+    if not Path(checkpoint_path).is_file():
+        return TrainingProgress()
+
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
+    metadata = checkpoint.get("metadata", {})
+    validate_cnn_metadata(metadata)
+    if metadata["class_to_idx"] != data.dataset.class_to_idx:
+        raise CheckpointCompatibilityError("Resume checkpoint class mapping differs from the dataset.")
+    if PreprocessingSpec.from_metadata(metadata) != spec:
+        raise CheckpointCompatibilityError("Resume checkpoint preprocessing differs from training.")
+    if metadata.get("split", {}).get("dataset_signature") != data.manifest["dataset_signature"]:
+        raise CheckpointCompatibilityError("Resume checkpoint was trained with a different data split.")
+    saved_optimizer = metadata.get("optimizer", {})
+    if saved_optimizer.get("name") != settings.optimizer_name:
+        raise CheckpointCompatibilityError("Resume checkpoint uses a different optimizer.")
+    if float(saved_optimizer.get("learning_rate")) != settings.learning_rate:
+        raise CheckpointCompatibilityError("Resume checkpoint uses a different base learning rate.")
+
+    required = ("model_state_dict", "optimizer_state_dict", "scheduler_state_dict")
+    missing = [key for key in required if key not in checkpoint]
+    if missing:
+        raise CheckpointCompatibilityError(f"Resume checkpoint is missing: {', '.join(missing)}")
+    model.load_state_dict(checkpoint["model_state_dict"], strict=True)
+    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+    for state in optimizer.state.values():
+        for key, value in state.items():
+            if isinstance(value, torch.Tensor):
+                state[key] = value.to(device)
+
+    saved_progress = checkpoint.get("training_progress", {})
+    return TrainingProgress(
+        cumulative_epochs=int(saved_progress.get("cumulative_epochs", 0)),
+        best_validation_accuracy=float(saved_progress.get("best_validation_accuracy", float("-inf"))),
+        best_validation_loss=float(saved_progress.get("best_validation_loss", float("inf"))),
+        epoch_of_best_checkpoint=saved_progress.get("epoch_of_best_checkpoint"),
+        epochs_without_improvement=int(saved_progress.get("epochs_without_improvement", 0)),
+    )
