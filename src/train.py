@@ -42,6 +42,7 @@ print()
 # 1. Load Dataset
 transform = transforms.Compose([
     transforms.Grayscale(num_output_channels=1),
+    transforms.Resize((64, 64)),
     transforms.ToTensor()
 ])
 dataset = ImageFolder(root="data", transform=transform)
