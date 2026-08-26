@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import random
+import queue
 import sys
 import threading
 from pathlib import Path
@@ -59,6 +60,7 @@ class AmharicAIApp(ctk.CTk):
         self.current_path: Path | None = None
         self.current_prediction: Prediction | None = None
         self.inference_generation = 0
+        self.worker_queue: queue.Queue = queue.Queue()
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
@@ -66,6 +68,7 @@ class AmharicAIApp(ctk.CTk):
         self._build_workspace()
         self._build_status_bar()
         self._refresh_samples()
+        self.after(50, self._poll_worker_queue)
 
     def _build_header(self) -> None:
         header = ctk.CTkFrame(self, fg_color=SURFACE, corner_radius=0, height=76)
@@ -454,9 +457,9 @@ class AmharicAIApp(ctk.CTk):
         try:
             prediction = self.engine.predict_path(path, top_k=3)
         except Exception as error:
-            self.after(0, lambda: messagebox.showerror("Prediction failed", str(error)))
+            self.worker_queue.put(("prediction_error", str(error)))
             return
-        self.after(0, self._show_prediction, path, generation, prediction)
+        self.worker_queue.put(("prediction", path, generation, prediction))
 
     def _show_prediction(self, path: Path, generation: int, prediction: Prediction) -> None:
         if generation != self.inference_generation:
@@ -536,11 +539,26 @@ class AmharicAIApp(ctk.CTk):
             output = "\n".join(lines)
         except Exception as error:
             output = f"Automatic test failed:\n{error}"
-        self.after(0, self._finish_automatic_test, output)
+        self.worker_queue.put(("automatic_test", output))
 
     def _finish_automatic_test(self, output: str) -> None:
         self._set_text(self.test_output, output)
         self.run_test_button.configure(state="normal", text="Run test")
+
+    def _poll_worker_queue(self) -> None:
+        while True:
+            try:
+                message = self.worker_queue.get_nowait()
+            except queue.Empty:
+                break
+            if message[0] == "prediction":
+                _, path, generation, prediction = message
+                self._show_prediction(path, generation, prediction)
+            elif message[0] == "prediction_error":
+                messagebox.showerror("Prediction failed", message[1])
+            elif message[0] == "automatic_test":
+                self._finish_automatic_test(message[1])
+        self.after(50, self._poll_worker_queue)
 
 
 if __name__ == "__main__":
