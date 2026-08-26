@@ -67,6 +67,8 @@ The split manifest is deterministic and stratified. Exact normalized duplicates 
 
 The current dataset was generated with a small shared set of fonts and procedural transformations. Its filenames do not preserve the generating font or an original-sample identifier. Therefore the measured validation/test accuracy is valid for held-out samples from the same synthetic generator distribution, but it is not evidence of equal performance on handwriting, camera images, scans, or unseen fonts. Future generators should save provenance such as `source_id`, font, writer, and augmentation parent so entire sources can be held out.
 
+The bundled checkpoint was migrated from the historical per-image random split and predates `cnn_data_split.json`. Until a fresh training run uses the manifest, manifest-partition results are diagnostic rather than genuinely held-out from that checkpoint. The diagnostics and GUI state this explicitly instead of presenting those figures as independent validation/test accuracy.
+
 ## Diagnostics
 
 Run all three labeled splits separately:

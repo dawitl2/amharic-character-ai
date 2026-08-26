@@ -225,7 +225,17 @@ def main() -> None:
 
     engine = InferenceEngine.from_artifacts()
     print(engine.startup_summary())
-    dataset, _, indices = load_diagnostic_dataset(engine)
+    dataset, manifest, indices = load_diagnostic_dataset(engine)
+    checkpoint_split = engine.bundle.metadata.get("split", {})
+    split_matches_checkpoint = (
+        checkpoint_split.get("strategy") == manifest.get("strategy")
+        and checkpoint_split.get("dataset_signature") == manifest.get("dataset_signature")
+    )
+    if not split_matches_checkpoint:
+        print(
+            "WARNING: This checkpoint predates the active split manifest. "
+            "Partition results below are diagnostic and are not guaranteed held-out from training."
+        )
     requested = ("train", "validation", "test") if arguments.split == "all" else (arguments.split,)
     for split_name in requested:
         _print_result(
