@@ -18,9 +18,9 @@ font_paths = [
     r"C:\Windows\Fonts\ebrimabd.ttf"
 ]
 
-images_per_class = 3000
+target_images_per_class = 6011
 
-print(f"Generating expanded dataset: {images_per_class} images per class for {len(characters)} classes...")
+print(f"Balancing dataset: ensuring {target_images_per_class} images per class for {len(characters)} classes...")
 
 def add_scanning_artifacts(draw, width, height):
     # Random faint lines (scanning artifacts)
@@ -40,11 +40,16 @@ for character in characters:
     output_folder = Path("data") / character
     output_folder.mkdir(parents=True, exist_ok=True)
     
-    # We will generate synthetic_exp_0001.png etc.
     existing = list(output_folder.glob("*.png"))
-    start_idx = len(existing) + 1
+    current_count = len(existing)
+    start_idx = current_count + 1
+    needed = target_images_per_class - current_count
     
-    for i in range(start_idx, start_idx + images_per_class):
+    if needed <= 0:
+        print(f"Class {character} already has {current_count} images. Skipping.")
+        continue
+        
+    for i in range(start_idx, start_idx + needed):
         # Mix 64x64 and 128x128 randomly
         image_size = random.choice([64, 128])
         
@@ -113,6 +118,6 @@ for character in characters:
         filename = output_folder / f"synthetic_exp_{i:04}.png"
         image.save(filename)
         
-    print(f"Generated {images_per_class} images for {character}")
+    print(f"Generated {needed} images for {character}")
 
 print("Expanded dataset generation complete!")
