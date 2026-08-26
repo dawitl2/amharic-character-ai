@@ -15,6 +15,9 @@ from diagnostics import evaluate_indices, load_diagnostic_dataset
 from inference import InferenceEngine, Prediction, dataset_label_for_path
 
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 ctk.set_appearance_mode("Light")
 ctk.set_default_color_theme("blue")
 
