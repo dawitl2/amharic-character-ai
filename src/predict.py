@@ -9,7 +9,7 @@ import torch.nn.functional as F
 
 sys.stdout.reconfigure(encoding='utf-8')
 
-from simple_model import SimpleModel
+from cnn_model import CNNModel
 
 def predict_character(image_path):
     # 1. Load Configuration
@@ -24,8 +24,8 @@ def predict_character(image_path):
     idx_to_class = {v: k for k, v in config["class_to_idx"].items()}
 
     # 2. Recreate Model Architecture and Load Weights
-    model = SimpleModel(num_classes=len(idx_to_class))
-    weights_path = "models/simple_model_weights.pth"
+    model = CNNModel(num_classes=len(idx_to_class))
+    weights_path = "models/best_model_weights.pth"
     if not os.path.exists(weights_path):
         print(f"Error: {weights_path} not found.")
         sys.exit(1)

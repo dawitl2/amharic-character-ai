@@ -14,31 +14,31 @@ import tkinter.filedialog as fd
 
 sys.stdout.reconfigure(encoding='utf-8')
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from simple_model import SimpleModel
+from cnn_model import CNNModel
 
-ctk.set_appearance_mode("Light")
+ctk.set_appearance_mode("Dark")
 
 # ─── Color Palette ───────────────────────────────────────────────────────────
-BG            = "#F4F7FB"
-SURFACE       = "#FFFFFF"
-SURFACE_SOFT  = "#F8FAFC"
-BORDER        = "#E2E8F0"
-TEXT_PRIMARY  = "#0F172A"
-TEXT_SECONDARY= "#475569"
-TEXT_MUTED    = "#94A3B8"
-ACCENT        = "#0F9F72"
-ACCENT_HOVER  = "#0B815C"
-ACCENT_LIGHT  = "#E8F8F2"
-ACCENT_TINT   = "#D5F2E7"
-SIDEBAR       = "#101A2E"
-SIDEBAR_SOFT  = "#17233A"
-SIDEBAR_BORDER= "#24324A"
-SIDEBAR_TEXT  = "#F8FAFC"
-SIDEBAR_MUTED = "#93A4BD"
-DANGER        = "#E5484D"
-DANGER_LIGHT  = "#FFF0F0"
-SUCCESS       = "#0F9F72"
-SUCCESS_LIGHT = "#E8F8F2"
+BG            = "#212121"
+SURFACE       = "#2F2F2F"
+SURFACE_SOFT  = "#3A3A3A"
+BORDER        = "#424242"
+TEXT_PRIMARY  = "#ECECEC"
+TEXT_SECONDARY= "#B4B4B4"
+TEXT_MUTED    = "#828282"
+ACCENT        = "#10A37F"
+ACCENT_HOVER  = "#1A7F64"
+ACCENT_LIGHT  = "#2A4B42"
+ACCENT_TINT   = "#1D362F"
+SIDEBAR       = "#171717"
+SIDEBAR_SOFT  = "#212121"
+SIDEBAR_BORDER= "#2F2F2F"
+SIDEBAR_TEXT  = "#ECECEC"
+SIDEBAR_MUTED = "#9B9B9B"
+DANGER        = "#EF4444"
+DANGER_LIGHT  = "#4A2222"
+SUCCESS       = "#10A37F"
+SUCCESS_LIGHT = "#2A4B42"
 
 # ─── Fonts ───────────────────────────────────────────────────────────────────
 FONT_TITLE    = ("Segoe UI", 24, "bold")
@@ -92,15 +92,14 @@ class AmharicAIApp(ctk.CTk):
             self.config = json.load(f)
         self.idx_to_class = {v: k for k, v in self.config["class_to_idx"].items()}
 
-        self.model = SimpleModel(num_classes=len(self.idx_to_class))
+        self.model = CNNModel(num_classes=len(self.idx_to_class))
         
         best_weights_path = "models/best_model_weights.pth"
-        legacy_weights_path = "models/simple_model_weights.pth"
         
         if os.path.exists(best_weights_path):
             self.model.load_state_dict(torch.load(best_weights_path))
         else:
-            self.model.load_state_dict(torch.load(legacy_weights_path))
+            print("Warning: best_model_weights.pth not found. Model will output random predictions.")
             
         self.model.eval()
         self.transform = transforms.Compose([
@@ -303,7 +302,7 @@ class AmharicAIApp(ctk.CTk):
         dataset_size = 6000
         total_forward_passes = epochs * dataset_size
         
-        # SimpleModel: Linear(64*64, 3) = 4096 * 3 + 3 = 12291
+        # LinearModel: Linear(64*64, 3) = 4096 * 3 + 3 = 12291
         model_params = 12291
 
         import datetime
@@ -363,7 +362,7 @@ class AmharicAIApp(ctk.CTk):
 
         lines = [
             ("Stage", "Phase 21 — Real Inference"),
-            ("Architecture", self.config.get("architecture", "SimpleModel")),
+            ("Architecture", self.config.get("architecture", "LinearModel")),
             ("Classes", f"{num_classes}  ({class_names})"),
             ("Image Size", f"{self.config.get('image_width', 64)} × {self.config.get('image_height', 64)} px"),
             ("Dataset", "~6,000 augmented synthetic images"),

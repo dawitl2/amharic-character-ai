@@ -5,7 +5,7 @@ Run this from the project root:
 
     .venv\Scripts\python.exe src/train.py
 
-This script trains the SimpleModel. It automatically detects and resumes
+This script trains the LinearModel. It automatically detects and resumes
 from previous checkpoints, saves the best model based on validation accuracy,
 and updates the configuration for the GUI.
 """
@@ -22,7 +22,7 @@ from torch.utils.data import Subset, DataLoader
 
 sys.stdout.reconfigure(encoding='utf-8')
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from simple_model import SimpleModel
+from cnn_model import CNNModel
 
 NUM_EPOCHS_TO_RUN = 1000
 BATCH_SIZE = 64
@@ -32,7 +32,7 @@ MODEL_DIR = "models"
 CONFIG_PATH = os.path.join(MODEL_DIR, "model_config.json")
 LATEST_CHECKPOINT = os.path.join(MODEL_DIR, "latest_checkpoint.pth")
 BEST_MODEL_WEIGHTS = os.path.join(MODEL_DIR, "best_model_weights.pth")
-LEGACY_WEIGHTS = os.path.join(MODEL_DIR, "simple_model_weights.pth")
+METRICS_CSV = os.path.join(MODEL_DIR, "training_metrics.csv")
 
 print(f"--- Training Pipeline ---")
 print(f"Targeting {NUM_EPOCHS_TO_RUN} additional epochs.")
@@ -68,7 +68,7 @@ print(f"Train: {len(train_idx)} | Val: {len(val_idx)} | Test: {len(test_idx)}")
 print()
 
 # 3. Model, Loss, Optimizer
-model = SimpleModel(num_classes=len(dataset.classes))
+model = CNNModel(num_classes=len(dataset.classes))
 loss_fn = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=LEARNING_RATE)
 
@@ -82,11 +82,10 @@ if os.path.exists(CONFIG_PATH):
         old_config = json.load(f)
     
     # Safety Check: Architecture and Classes must match
-    if old_config.get("architecture") != "SimpleModel (Flatten -> Linear)":
-        print("⚠️  WARNING: Architecture mismatch! Expected SimpleModel. Aborting.")
-        sys.exit(1)
-    
-    if old_config.get("class_to_idx") != dataset.class_to_idx:
+    if old_config.get("architecture") != "CNNModel (Conv2d -> MaxPool2d -> Linear)":
+        print("⚠️  WARNING: Architecture mismatch! Expected CNNModel. Starting from scratch.")
+        ignore_checkpoint = True
+    elif old_config.get("class_to_idx") != dataset.class_to_idx:
         print("⚠️  WARNING: Class mapping mismatch! The dataset classes have expanded from 3 to 10.")
         print("⚠️  Starting training from scratch to accommodate new classes.")
         ignore_checkpoint = True
@@ -163,6 +162,13 @@ for epoch in range(start_epoch, NUM_EPOCHS_TO_RUN + 1):
         "optimizer_state_dict": optimizer.state_dict(),
         "best_val_acc": best_val_acc,
     }, LATEST_CHECKPOINT)
+    
+    # Phase 27: Write to CSV for experiment tracking
+    write_header = not os.path.exists(METRICS_CSV)
+    with open(METRICS_CSV, "a", encoding="utf-8") as f:
+        if write_header:
+            f.write("epoch,train_acc,val_acc,train_loss\n")
+        f.write(f"{cumulative_epochs},{train_acc:.2f},{val_acc:.2f},{avg_loss:.4f}\n")
 
 # 4. Final Test
 print("\nLoading best model for final independent test evaluation...")
@@ -186,12 +192,10 @@ print(f"Final Test Accuracy:      {test_acc:.2f}%")
 # 5. Save Configuration for GUI
 os.makedirs("models", exist_ok=True)
 
-# Also update the legacy weights path for older scripts that might expect it
-torch.save(model.state_dict(), LEGACY_WEIGHTS)
-print(f"Backed up final model to {LEGACY_WEIGHTS}")
+
 
 config = {
-    "architecture": "SimpleModel (Flatten -> Linear)",
+    "architecture": "CNNModel (Conv2d -> MaxPool2d -> Linear)",
     "image_width": 64,
     "image_height": 64,
     "class_to_idx": dataset.class_to_idx,
