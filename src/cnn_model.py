@@ -1,14 +1,20 @@
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class CNNModel(nn.Module):
+ARCHITECTURE_NAME = "CharacterCNN"
+INPUT_CHANNELS = 1
+INPUT_HEIGHT = 64
+INPUT_WIDTH = 64
+
+
+class CharacterCNN(nn.Module):
     """
     CONVOLUTIONAL NEURAL NETWORK (Phase 25+)
     This architecture learns hierarchical features (edges, strokes) directly from the image pixels.
     """
-    def __init__(self, num_classes=10):
+    def __init__(self, num_classes: int = 10):
         super().__init__()
+        self.num_classes = num_classes
         
         # Input shape: [batch_size, 1, 64, 64]
         # 1st Convolutional Block
@@ -43,7 +49,9 @@ class CNNModel(nn.Module):
         return x
 
 if __name__ == "__main__":
-    model = CNNModel()
+    import torch
+
+    model = CharacterCNN()
     fake_images = torch.randn(4, 1, 64, 64)
     outputs = model(fake_images)
     print("CNN output shape:", outputs.shape)
