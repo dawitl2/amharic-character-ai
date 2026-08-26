@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader, Subset
 from torchvision.datasets import ImageFolder
 
 from data_splits import load_or_create_split_manifest, split_indices
-from inference import InferenceEngine
+from inference import InferenceEngine, dataset_label_for_path
 from preprocessing import CharacterTransform
 from project_paths import DATA_DIR, SPLIT_MANIFEST_PATH
 
@@ -148,6 +148,47 @@ def evaluate_external_directory(
         correct=correct,
         total=len(paths),
         mean_confidence=0.0 if not paths else confidence_sum / len(paths),
+        failures=tuple(failures),
+    )
+
+
+def evaluate_labeled_paths(
+    engine: InferenceEngine,
+    paths: list[Path],
+    split_name: str,
+    *,
+    limit: int | None = None,
+    seed: int = 42,
+) -> EvaluationResult:
+    selected_paths = list(paths)
+    if limit is not None and limit < len(selected_paths):
+        selected_paths = random.Random(seed).sample(selected_paths, limit)
+    correct = 0
+    confidence_sum = 0.0
+    failures = []
+    for path in selected_paths:
+        label = dataset_label_for_path(path)
+        if label not in engine.bundle.metadata["class_to_idx"]:
+            raise ValueError(f"Path is not a labeled dataset image: {path}")
+        prediction = engine.predict_path(path)
+        confidence_sum += prediction.confidence
+        if prediction.predicted_character == label:
+            correct += 1
+        elif len(failures) < 50:
+            failures.append(
+                EvaluationFailure(
+                    image_path=path,
+                    correct_character=label,
+                    predicted_character=prediction.predicted_character,
+                    confidence=prediction.confidence,
+                )
+            )
+    total = len(selected_paths)
+    return EvaluationResult(
+        split_name=split_name,
+        correct=correct,
+        total=total,
+        mean_confidence=0.0 if total == 0 else confidence_sum / total,
         failures=tuple(failures),
     )
 
