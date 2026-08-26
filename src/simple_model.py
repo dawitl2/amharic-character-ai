@@ -4,14 +4,14 @@ import torch.nn as nn
 
 class SimpleModel(nn.Module):
 
-    def __init__(self):
+    def __init__(self, num_classes=3):
         super().__init__()
 
         self.flatten = nn.Flatten()
 
         self.classifier = nn.Linear(
             64 * 64,
-            3
+            num_classes
         )
 
     def forward(self, x):

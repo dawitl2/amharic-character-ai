@@ -92,7 +92,7 @@ class AmharicAIApp(ctk.CTk):
             self.config = json.load(f)
         self.idx_to_class = {v: k for k, v in self.config["class_to_idx"].items()}
 
-        self.model = SimpleModel()
+        self.model = SimpleModel(num_classes=len(self.idx_to_class))
         
         best_weights_path = "models/best_model_weights.pth"
         legacy_weights_path = "models/simple_model_weights.pth"

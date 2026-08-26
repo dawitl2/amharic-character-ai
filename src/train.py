@@ -68,7 +68,7 @@ print(f"Train: {len(train_idx)} | Val: {len(val_idx)} | Test: {len(test_idx)}")
 print()
 
 # 3. Model, Loss, Optimizer
-model = SimpleModel()
+model = SimpleModel(num_classes=len(dataset.classes))
 loss_fn = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=LEARNING_RATE)
 
@@ -87,12 +87,16 @@ if os.path.exists(CONFIG_PATH):
         sys.exit(1)
     
     if old_config.get("class_to_idx") != dataset.class_to_idx:
-        print("⚠️  WARNING: Class mapping mismatch! The dataset classes have changed. Aborting to prevent corrupting weights.")
-        sys.exit(1)
-        
-    cumulative_epochs = old_config.get("epochs_trained", 0)
+        print("⚠️  WARNING: Class mapping mismatch! The dataset classes have expanded from 3 to 10.")
+        print("⚠️  Starting training from scratch to accommodate new classes.")
+        ignore_checkpoint = True
+    else:
+        ignore_checkpoint = False
+        cumulative_epochs = old_config.get("epochs_trained", 0)
+else:
+    ignore_checkpoint = False
 
-if os.path.exists(LATEST_CHECKPOINT):
+if os.path.exists(LATEST_CHECKPOINT) and not ignore_checkpoint:
     print(f"Resuming from {LATEST_CHECKPOINT}...")
     checkpoint = torch.load(LATEST_CHECKPOINT)
     model.load_state_dict(checkpoint["model_state_dict"])
