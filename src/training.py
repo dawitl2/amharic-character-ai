@@ -38,6 +38,14 @@ class TrainingData:
     test_loader: DataLoader
 
 
+@dataclass(frozen=True)
+class EpochMetrics:
+    loss: float
+    accuracy: float
+    correct: int
+    total: int
+
+
 def set_deterministic_seed(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)
@@ -69,3 +77,37 @@ def create_training_data(settings: TrainingSettings, spec: PreprocessingSpec) ->
         validation_loader=loader("validation", shuffle=False),
         test_loader=loader("test", shuffle=False),
     )
+
+
+def train_one_epoch(model, loader, loss_function, optimizer, device: torch.device) -> EpochMetrics:
+    model.train()
+    loss_sum = 0.0
+    correct = 0
+    total = 0
+    for images, labels in loader:
+        images, labels = images.to(device), labels.to(device)
+        optimizer.zero_grad(set_to_none=True)
+        logits = model(images)
+        loss = loss_function(logits, labels)
+        loss.backward()
+        optimizer.step()
+        loss_sum += float(loss.item()) * labels.size(0)
+        correct += int((logits.argmax(dim=1) == labels).sum().item())
+        total += labels.size(0)
+    return EpochMetrics(loss_sum / total, 100.0 * correct / total, correct, total)
+
+
+def evaluate_model(model, loader, loss_function, device: torch.device) -> EpochMetrics:
+    model.eval()
+    loss_sum = 0.0
+    correct = 0
+    total = 0
+    with torch.inference_mode():
+        for images, labels in loader:
+            images, labels = images.to(device), labels.to(device)
+            logits = model(images)
+            loss = loss_function(logits, labels)
+            loss_sum += float(loss.item()) * labels.size(0)
+            correct += int((logits.argmax(dim=1) == labels).sum().item())
+            total += labels.size(0)
+    return EpochMetrics(loss_sum / total, 100.0 * correct / total, correct, total)
