@@ -43,7 +43,7 @@ def main() -> None:
         print(f"Direct/GUI prediction: {direct.predicted_character}")
         print(f"Direct/GUI confidence: {direct.confidence:.8f}")
         print("Direct/GUI logits and probabilities: IDENTICAL")
-        print("GUI held-out automatic test: PASS")
+        print("GUI manifest-partition automatic test: PASS")
     finally:
         app.destroy()
 
