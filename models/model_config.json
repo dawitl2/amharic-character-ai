@@ -1,13 +1,30 @@
 {
-  "architecture": "SimpleModel (Flatten -> Linear)",
+  "architecture": "CharacterCNN",
   "image_width": 64,
   "image_height": 64,
+  "channels": 1,
   "class_to_idx": {
     "ሀ": 0,
     "ለ": 1,
-    "መ": 2
+    "ሐ": 2,
+    "መ": 3,
+    "ሠ": 4,
+    "ረ": 5,
+    "ሰ": 6,
+    "ሸ": 7,
+    "ቀ": 8,
+    "በ": 9
   },
-  "epochs_trained": 300,
-  "best_val_accuracy": 78.34,
-  "test_accuracy": 77.24
+  "num_classes": 10,
+  "epochs_trained": 26,
+  "best_epoch": 24,
+  "best_val_accuracy": 98.47,
+  "test_accuracy": null,
+  "optimizer": "SGD",
+  "learning_rate": 0.01,
+  "batch_size": 64,
+  "dataset_total": 60110,
+  "train_count": 42077,
+  "val_count": 9017,
+  "test_count": 9016
 }
