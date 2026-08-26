@@ -25,8 +25,7 @@ def main() -> None:
     app = AmharicAIApp()
     app.withdraw()
     try:
-        dataset_index = app.split_indices["test"][0]
-        image_path = Path(app.dataset.samples[dataset_index][0])
+        image_path = app.split_paths["test"][0]
         direct = app.engine.predict_path(image_path)
         app._select_image(image_path)
         wait_until(app, lambda: app.current_prediction is not None)
