@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import random
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,12 +16,21 @@ from torchvision.datasets import ImageFolder
 from checkpoints import (
     CHECKPOINT_FORMAT_VERSION,
     CheckpointCompatibilityError,
+    save_checkpoint_atomic,
+    save_json_atomic,
     validate_cnn_metadata,
 )
-from cnn_model import ARCHITECTURE_NAME
+from cnn_model import ARCHITECTURE_NAME, CharacterCNN
 from data_splits import load_or_create_split_manifest, split_indices
 from preprocessing import CharacterTransform, PreprocessingSpec
-from project_paths import DATA_DIR, SPLIT_MANIFEST_PATH
+from project_paths import (
+    BEST_CNN_CHECKPOINT,
+    CNN_CONFIG_PATH,
+    DATA_DIR,
+    LATEST_CNN_CHECKPOINT,
+    METRICS_CSV_PATH,
+    SPLIT_MANIFEST_PATH,
+)
 
 
 @dataclass(frozen=True)
@@ -247,3 +257,137 @@ def resume_training_state(
         epoch_of_best_checkpoint=saved_progress.get("epoch_of_best_checkpoint"),
         epochs_without_improvement=int(saved_progress.get("epochs_without_improvement", 0)),
     )
+
+
+def _append_metrics(epoch: int, train: EpochMetrics, validation: EpochMetrics, learning_rate: float) -> None:
+    write_header = not METRICS_CSV_PATH.exists()
+    with METRICS_CSV_PATH.open("a", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        if write_header:
+            writer.writerow(("epoch", "train_loss", "train_accuracy", "validation_loss", "validation_accuracy", "learning_rate"))
+        writer.writerow(
+            (
+                epoch,
+                f"{train.loss:.6f}",
+                f"{train.accuracy:.4f}",
+                f"{validation.loss:.6f}",
+                f"{validation.accuracy:.4f}",
+                f"{learning_rate:.8f}",
+            )
+        )
+
+
+def run_training(settings: TrainingSettings) -> dict[str, Any]:
+    set_deterministic_seed(settings.seed)
+    spec = PreprocessingSpec()
+    data = create_training_data(settings, spec)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = CharacterCNN(num_classes=len(data.dataset.classes)).to(device)
+    loss_function = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.SGD(model.parameters(), lr=settings.learning_rate)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer,
+        mode="max",
+        factor=settings.scheduler_factor,
+        patience=settings.scheduler_patience,
+        min_lr=settings.scheduler_min_lr,
+    )
+    progress = resume_training_state(
+        LATEST_CNN_CHECKPOINT,
+        model,
+        optimizer,
+        scheduler,
+        data,
+        spec,
+        settings,
+        device,
+    )
+
+    print(f"Architecture: {ARCHITECTURE_NAME}")
+    print(f"Device: {device}")
+    print(f"Maximum cumulative epochs: {settings.max_epochs}")
+    print(f"Optimizer: {settings.optimizer_name}")
+    print(f"Learning rate: {settings.learning_rate}")
+    print(f"Batch size: {settings.batch_size}")
+    print(
+        "Scheduler: ReduceLROnPlateau "
+        f"(factor={settings.scheduler_factor}, patience={settings.scheduler_patience}, "
+        f"min_lr={settings.scheduler_min_lr})"
+    )
+    print(
+        f"Early stopping: patience={settings.early_stopping_patience}, "
+        f"minimum accuracy delta={settings.early_stopping_min_delta:.2f} percentage points"
+    )
+    print(f"Split: {data.manifest['strategy']} {data.manifest['counts']}")
+    if progress.cumulative_epochs:
+        print(f"Resumed from cumulative epoch {progress.cumulative_epochs}: {LATEST_CNN_CHECKPOINT}")
+    else:
+        print("No compatible latest CNN checkpoint found; starting from random weights.")
+
+    for epoch in range(progress.cumulative_epochs + 1, settings.max_epochs + 1):
+        train_metrics = train_one_epoch(model, data.train_loader, loss_function, optimizer, device)
+        validation_metrics = evaluate_model(
+            model, data.validation_loader, loss_function, device
+        )
+        previous_best_accuracy = progress.best_validation_accuracy
+        previous_best_loss = progress.best_validation_loss
+        is_best = (
+            validation_metrics.accuracy > previous_best_accuracy
+            or (
+                validation_metrics.accuracy == previous_best_accuracy
+                and validation_metrics.loss < previous_best_loss
+            )
+        )
+        meaningful_improvement = (
+            validation_metrics.accuracy >= previous_best_accuracy + settings.early_stopping_min_delta
+            or (
+                validation_metrics.accuracy >= previous_best_accuracy
+                and validation_metrics.loss < previous_best_loss - 1e-4
+            )
+        )
+        progress.cumulative_epochs = epoch
+        if is_best:
+            progress.best_validation_accuracy = validation_metrics.accuracy
+            progress.best_validation_loss = validation_metrics.loss
+            progress.epoch_of_best_checkpoint = epoch
+        progress.epochs_without_improvement = (
+            0 if meaningful_improvement else progress.epochs_without_improvement + 1
+        )
+        scheduler.step(validation_metrics.accuracy)
+
+        metadata = build_training_metadata(settings, data, spec, progress, test_accuracy=None)
+        payload = checkpoint_payload(model, optimizer, scheduler, metadata, progress)
+        if is_best:
+            save_checkpoint_atomic(BEST_CNN_CHECKPOINT, payload)
+            save_json_atomic(CNN_CONFIG_PATH, metadata)
+        save_checkpoint_atomic(LATEST_CNN_CHECKPOINT, payload)
+        current_lr = float(optimizer.param_groups[0]["lr"])
+        _append_metrics(epoch, train_metrics, validation_metrics, current_lr)
+        marker = " best" if is_best else ""
+        print(
+            f"Epoch {epoch:3d} | train {train_metrics.accuracy:6.2f}% "
+            f"loss {train_metrics.loss:.4f} | validation {validation_metrics.accuracy:6.2f}% "
+            f"loss {validation_metrics.loss:.4f} | lr {current_lr:.6f}{marker}"
+        )
+        if progress.epochs_without_improvement >= settings.early_stopping_patience:
+            print(f"Early stopping after {progress.epochs_without_improvement} unimproved epochs.")
+            break
+
+    if not BEST_CNN_CHECKPOINT.is_file():
+        raise RuntimeError("Training finished without producing a best CNN checkpoint.")
+    best_checkpoint = torch.load(BEST_CNN_CHECKPOINT, map_location=device, weights_only=True)
+    model.load_state_dict(best_checkpoint["model_state_dict"], strict=True)
+    test_metrics = evaluate_model(model, data.test_loader, loss_function, device)
+    final_metadata = build_training_metadata(
+        settings, data, spec, progress, test_accuracy=test_metrics.accuracy
+    )
+    best_checkpoint["metadata"] = final_metadata
+    save_checkpoint_atomic(BEST_CNN_CHECKPOINT, best_checkpoint)
+    save_json_atomic(CNN_CONFIG_PATH, final_metadata)
+    if LATEST_CNN_CHECKPOINT.is_file():
+        latest_checkpoint = torch.load(LATEST_CNN_CHECKPOINT, map_location="cpu", weights_only=True)
+        latest_checkpoint["metadata"] = final_metadata
+        save_checkpoint_atomic(LATEST_CNN_CHECKPOINT, latest_checkpoint)
+    print(f"Best validation accuracy: {progress.best_validation_accuracy:.2f}%")
+    print(f"Independent test accuracy: {test_metrics.accuracy:.2f}%")
+    return final_metadata
