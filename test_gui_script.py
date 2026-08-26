@@ -36,10 +36,15 @@ def main() -> None:
         assert direct.probabilities == through_gui.probabilities
         assert direct.logits == through_gui.logits
         assert app.correct_answer_label.cget("text") != "Correct answer: Unknown"
+        app.test_count_var.set("10")
+        app.split_var.set("test")
+        app._run_automatic_test()
+        wait_until(app, lambda: "Accuracy:" in app.test_output.get("1.0", "end"), timeout=30.0)
         print("GUI startup: PASS")
         print(f"Direct/GUI prediction: {direct.predicted_character}")
         print(f"Direct/GUI confidence: {direct.confidence:.8f}")
         print("Direct/GUI logits and probabilities: IDENTICAL")
+        print("GUI held-out automatic test: PASS")
     finally:
         app.destroy()
 
