@@ -40,8 +40,8 @@ class AmharicAIApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Ethiopic Character Recognizer")
-        self.geometry("1240x780")
-        self.minsize(1080, 700)
+        self.geometry("1160x760")
+        self.minsize(1050, 680)
         self.configure(fg_color=BACKGROUND)
 
         try:
@@ -136,7 +136,9 @@ class AmharicAIApp(ctk.CTk):
             ).pack(fill="x", pady=(2, 10))
 
     def _build_source_panel(self) -> None:
-        content = ctk.CTkFrame(self.left_panel, fg_color="transparent")
+        content = ctk.CTkScrollableFrame(
+            self.left_panel, fg_color="transparent", corner_radius=0
+        )
         content.pack(fill="both", expand=True, padx=16, pady=16)
         self._section_title(content, "Image source", "Choose a held-out sample or an external image.")
 
