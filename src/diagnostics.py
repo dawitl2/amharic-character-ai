@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import argparse
 import random
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -103,3 +105,105 @@ def evaluate_indices(
         mean_confidence=0.0 if total == 0 else confidence_sum / total,
         failures=tuple(failures),
     )
+
+
+def evaluate_external_directory(
+    engine: InferenceEngine,
+    external_dir: Path,
+    *,
+    limit: int | None = None,
+    seed: int = 42,
+) -> EvaluationResult:
+    supported_suffixes = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
+    paths = [
+        path
+        for path in Path(external_dir).rglob("*")
+        if path.is_file()
+        and path.suffix.lower() in supported_suffixes
+        and path.parent.name in engine.bundle.metadata["class_to_idx"]
+    ]
+    paths.sort()
+    if limit is not None and limit < len(paths):
+        paths = random.Random(seed).sample(paths, limit)
+    correct = 0
+    confidence_sum = 0.0
+    failures = []
+    for path in paths:
+        prediction = engine.predict_path(path)
+        label = path.parent.name
+        confidence_sum += prediction.confidence
+        if prediction.predicted_character == label:
+            correct += 1
+        elif len(failures) < 50:
+            failures.append(
+                EvaluationFailure(
+                    image_path=path,
+                    correct_character=label,
+                    predicted_character=prediction.predicted_character,
+                    confidence=prediction.confidence,
+                )
+            )
+    return EvaluationResult(
+        split_name="external",
+        correct=correct,
+        total=len(paths),
+        mean_confidence=0.0 if not paths else confidence_sum / len(paths),
+        failures=tuple(failures),
+    )
+
+
+def _print_result(result: EvaluationResult) -> None:
+    if result.accuracy is None:
+        print(f"{result.split_name.title():<20} Accuracy: N/A (no labeled samples supplied)")
+        return
+    print(
+        f"{result.split_name.title():<20} Accuracy: {result.accuracy:6.2f}% "
+        f"({result.correct}/{result.total}), mean confidence {result.mean_confidence:.2%}"
+    )
+    for failure in result.failures[:10]:
+        print(
+            f"  FAIL {failure.image_path.name}: correct {failure.correct_character}, "
+            f"predicted {failure.predicted_character}, confidence {failure.confidence:.1%}"
+        )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--split",
+        choices=("all", "train", "validation", "test"),
+        default="all",
+    )
+    parser.add_argument("--limit", type=int, help="Random samples per selected split")
+    parser.add_argument(
+        "--external-dir",
+        type=Path,
+        help="Optional labeled external tree: external_dir/<character>/<image>",
+    )
+    arguments = parser.parse_args()
+
+    engine = InferenceEngine.from_artifacts()
+    print(engine.startup_summary())
+    dataset, _, indices = load_diagnostic_dataset(engine)
+    requested = ("train", "validation", "test") if arguments.split == "all" else (arguments.split,)
+    for split_name in requested:
+        _print_result(
+            evaluate_indices(
+                engine,
+                dataset,
+                indices[split_name],
+                split_name,
+                limit=arguments.limit,
+            )
+        )
+    external = (
+        evaluate_external_directory(engine, arguments.external_dir, limit=arguments.limit)
+        if arguments.external_dir
+        else EvaluationResult("external", 0, 0, 0.0, ())
+    )
+    _print_result(external)
+
+
+if __name__ == "__main__":
+    sys.stdout.reconfigure(encoding="utf-8")
+    main()
