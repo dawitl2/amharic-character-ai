@@ -4,8 +4,8 @@ from torchvision.datasets import ImageFolder
 from torchvision import transforms
 from torch.utils.data import DataLoader
 import json
-import os
 
+from legacy_linear_paths import LEGACY_LINEAR_CONFIG, LEGACY_LINEAR_DIR, LEGACY_LINEAR_WEIGHTS
 from linear_model import LinearModel
 
 # 1. Setup DataLoader to train the model quickly
@@ -31,8 +31,8 @@ for epoch in range(1, 15):
         optimizer.step()
 
 # 3. Save the Model
-os.makedirs("models", exist_ok=True)
-model_path = "models/linear_model_weights.pth"
+LEGACY_LINEAR_DIR.mkdir(parents=True, exist_ok=True)
+model_path = LEGACY_LINEAR_WEIGHTS
 
 # Save only the learned weights (state_dict), which is best practice in PyTorch
 torch.save(model.state_dict(), model_path)
@@ -48,7 +48,7 @@ config = {
     "class_to_idx": dataset.class_to_idx
 }
 
-config_path = "models/model_config.json"
+config_path = LEGACY_LINEAR_CONFIG
 with open(config_path, "w", encoding="utf-8") as f:
     json.dump(config, f, indent=4, ensure_ascii=False)
 

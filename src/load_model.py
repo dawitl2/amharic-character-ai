@@ -1,18 +1,18 @@
 import torch
 import json
-import os
 from torchvision import transforms
 from PIL import Image
 import sys
 sys.stdout.reconfigure(encoding='utf-8')
 
+from legacy_linear_paths import LEGACY_LINEAR_CONFIG, LEGACY_LINEAR_WEIGHTS
 from linear_model import LinearModel
 
 print("--- Phase 20: Loading the Model ---")
 
 # 1. Load Configuration
-config_path = "models/model_config.json"
-if not os.path.exists(config_path):
+config_path = LEGACY_LINEAR_CONFIG
+if not config_path.exists():
     raise FileNotFoundError("Configuration file not found. Did you run save_model.py?")
 
 with open(config_path, "r", encoding="utf-8") as f:
@@ -28,8 +28,8 @@ idx_to_class = {v: k for k, v in config["class_to_idx"].items()}
 model = LinearModel()
 
 # 3. Load Saved Weights
-weights_path = "models/linear_model_weights.pth"
-model.load_state_dict(torch.load(weights_path))
+weights_path = LEGACY_LINEAR_WEIGHTS
+model.load_state_dict(torch.load(weights_path, map_location="cpu", weights_only=True))
 print(f"Successfully loaded learned weights from '{weights_path}'")
 
 # 4. Set to Evaluation Mode (CRITICAL for inference)
