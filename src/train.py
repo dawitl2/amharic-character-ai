@@ -24,7 +24,7 @@ sys.stdout.reconfigure(encoding='utf-8')
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from simple_model import SimpleModel
 
-NUM_EPOCHS_TO_RUN = 100
+NUM_EPOCHS_TO_RUN = 1000
 BATCH_SIZE = 64
 LEARNING_RATE = 0.01
 
