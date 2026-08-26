@@ -1,43 +1,23 @@
-import os
 import sys
-import json
 import torch
 import random
 import matplotlib.pyplot as plt
-from torchvision import transforms
 from PIL import Image
 
 sys.stdout.reconfigure(encoding='utf-8')
 
-# Ensure we're running from the project root
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from cnn_model import CNNModel
+from inference import InferenceEngine
+from preprocessing import preprocess_image
+from project_paths import DATA_DIR, MODEL_DIR
 
 def main():
-    config_path = "models/model_config.json"
-    weights_path = "models/best_model_weights.pth"
-    
-    if not os.path.exists(weights_path) or not os.path.exists(config_path):
-        print("Please train the CNN first to generate weights and config.")
-        return
-        
-    with open(config_path, "r", encoding="utf-8") as f:
-        config = json.load(f)
-        
-    if "CNNModel" not in config.get("architecture", ""):
-        print("The saved model is not a CNN. Please run train.py to train the CNN first.")
-        return
-
-    # Load Model
-    idx_to_class = {v: k for k, v in config["class_to_idx"].items()}
-    model = CNNModel(num_classes=len(idx_to_class))
-    model.load_state_dict(torch.load(weights_path))
-    model.eval()
+    engine = InferenceEngine.from_artifacts()
+    print(engine.startup_summary())
+    model = engine.bundle.model
     
     # Pick a random image from data folder
     from pathlib import Path
-    data_dir = Path("data")
-    all_images = list(data_dir.rglob("*.png"))
+    all_images = list(DATA_DIR.rglob("*.png"))
     if not all_images:
         print("No images found in data folder.")
         return
@@ -45,15 +25,8 @@ def main():
     image_path = random.choice(all_images)
     print(f"Visualizing features for: {image_path}")
     
-    # Preprocess
-    transform = transforms.Compose([
-        transforms.Grayscale(num_output_channels=1),
-        transforms.Resize((64, 64)),
-        transforms.ToTensor()
-    ])
-    
     img = Image.open(image_path).convert("L")
-    x = transform(img).unsqueeze(0)  # Add batch dimension [1, 1, 64, 64]
+    x = preprocess_image(img, engine.bundle.preprocessing).unsqueeze(0)
     
     # We want to intercept the output after conv1 and conv2
     # We can do this by running the layers manually
@@ -106,7 +79,7 @@ def main():
     plt.tight_layout()
     
     # Save the visualization
-    out_path = "models/cnn_visualization.png"
+    out_path = MODEL_DIR / "cnn_visualization.png"
     plt.savefig(out_path)
     print(f"Visualization saved to {out_path}")
     plt.show()
