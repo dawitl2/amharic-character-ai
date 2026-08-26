@@ -1,79 +1,28 @@
+"""Predict one image with the active CharacterCNN checkpoint."""
+
 import argparse
-import torch
-import json
-import os
 import sys
-from PIL import Image
-import torchvision.transforms as transforms
-import torch.nn.functional as F
+from pathlib import Path
 
-sys.stdout.reconfigure(encoding='utf-8')
+from inference import InferenceEngine
 
-from cnn_model import CNNModel
 
-def predict_character(image_path):
-    # 1. Load Configuration
-    config_path = "models/model_config.json"
-    if not os.path.exists(config_path):
-        print(f"Error: {config_path} not found. Please train and save the model first.")
-        sys.exit(1)
-        
-    with open(config_path, "r", encoding="utf-8") as f:
-        config = json.load(f)
-        
-    idx_to_class = {v: k for k, v in config["class_to_idx"].items()}
+def predict_character(image_path: Path) -> None:
+    engine = InferenceEngine.from_artifacts()
+    print(engine.startup_summary())
+    prediction = engine.predict_path(image_path, top_k=3)
+    print(f"Input tensor: {prediction.tensor_shape}")
+    print(f"Probability sum: {prediction.probability_sum:.6f}")
+    print(f"Prediction: {prediction.predicted_character}")
+    print(f"Confidence: {prediction.confidence:.1%}")
+    print("Top predictions:")
+    for rank, candidate in enumerate(prediction.top_predictions, start=1):
+        print(f"  {rank}. {candidate.character} — {candidate.probability:.1%}")
 
-    # 2. Recreate Model Architecture and Load Weights
-    model = CNNModel(num_classes=len(idx_to_class))
-    weights_path = "models/best_model_weights.pth"
-    if not os.path.exists(weights_path):
-        print(f"Error: {weights_path} not found.")
-        sys.exit(1)
-        
-    if "CNNModel" not in config.get("architecture", ""):
-        print("Error: The saved weights belong to the old Linear model, but predict.py expects the CNN model. Please run train.py first to train the CNN.")
-        sys.exit(1)
-
-    model.load_state_dict(torch.load(weights_path))
-    model.eval()
-
-    # 3. Preprocess the Image
-    if not os.path.exists(image_path):
-        print(f"Error: Image '{image_path}' not found.")
-        sys.exit(1)
-        
-    # Standardize image to match training transformations
-    transform = transforms.Compose([
-        transforms.Grayscale(num_output_channels=1),
-        transforms.Resize((config["image_height"], config["image_width"])),
-        transforms.ToTensor()
-    ])
-    
-    image = Image.open(image_path)
-    image_tensor = transform(image)
-    image_tensor = image_tensor.unsqueeze(0) # Add batch dimension -> [1, 1, 64, 64]
-    
-    # 4. Run Model
-    with torch.no_grad():
-        logits = model(image_tensor)
-        
-    # 5. Convert Logits to Probabilities using Softmax
-    probabilities = F.softmax(logits, dim=1)
-    
-    # 6. Select highest probability
-    top_prob, top_class_idx = torch.max(probabilities, dim=1)
-    
-    # 7. Convert class number to character
-    predicted_character = idx_to_class[top_class_idx.item()]
-    confidence_percentage = top_prob.item() * 100
-    
-    # 8. Display Prediction
-    print(f"Prediction: {predicted_character}")
-    print(f"Confidence: {confidence_percentage:.1f}%")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Predict an Amharic character from an image.")
-    parser.add_argument("image_path", type=str, help="Path to the image file.")
-    args = parser.parse_args()
-    
-    predict_character(args.image_path)
+    sys.stdout.reconfigure(encoding="utf-8")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("image_path", type=Path, help="Image to classify")
+    arguments = parser.parse_args()
+    predict_character(arguments.image_path)
