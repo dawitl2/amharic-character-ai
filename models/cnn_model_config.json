@@ -1,0 +1,58 @@
+{
+  "checkpoint_format_version": 1,
+  "architecture": "CharacterCNN",
+  "class_to_idx": {
+    "ሀ": 0,
+    "ለ": 1,
+    "ሐ": 2,
+    "መ": 3,
+    "ሠ": 4,
+    "ረ": 5,
+    "ሰ": 6,
+    "ሸ": 7,
+    "ቀ": 8,
+    "በ": 9
+  },
+  "num_classes": 10,
+  "preprocessing": {
+    "width": 64,
+    "height": 64,
+    "channels": 1,
+    "normalization_mean": [
+      0.0
+    ],
+    "normalization_std": [
+      1.0
+    ],
+    "mode": "grayscale",
+    "value_range": [
+      0.0,
+      1.0
+    ]
+  },
+  "best_validation_accuracy": 98.47,
+  "test_accuracy": null,
+  "epoch_of_best_checkpoint": 24,
+  "cumulative_epochs_trained": 26,
+  "optimizer": {
+    "name": "SGD",
+    "learning_rate": 0.01
+  },
+  "batch_size": 64,
+  "scheduler": null,
+  "early_stopping": null,
+  "dataset": {
+    "total": 60110,
+    "train": 42077,
+    "validation": 9017,
+    "test": 9016
+  },
+  "split": {
+    "strategy": "historical_random_stratified",
+    "seed": 42,
+    "note": "Migrated metrics describe the historical per-image random split."
+  },
+  "migration": {
+    "source_weights": "best_model_weights.pth"
+  }
+}
