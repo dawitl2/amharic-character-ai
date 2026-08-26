@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import random
 import queue
 import sys
@@ -12,8 +13,9 @@ from tkinter import filedialog, messagebox
 import customtkinter as ctk
 from PIL import Image
 
-from diagnostics import evaluate_indices, load_diagnostic_dataset
+from diagnostics import evaluate_labeled_paths
 from inference import InferenceEngine, Prediction, dataset_label_for_path
+from project_paths import DATA_DIR, SPLIT_MANIFEST_PATH
 
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -46,9 +48,14 @@ class AmharicAIApp(ctk.CTk):
 
         try:
             self.engine = InferenceEngine.from_artifacts()
-            self.dataset, self.split_manifest, self.split_indices = load_diagnostic_dataset(
-                self.engine
-            )
+            with SPLIT_MANIFEST_PATH.open("r", encoding="utf-8") as handle:
+                self.split_manifest = json.load(handle)
+            if self.split_manifest.get("class_to_idx") != self.engine.bundle.metadata["class_to_idx"]:
+                raise RuntimeError("Data split class mapping differs from the active CNN checkpoint.")
+            self.split_paths = {
+                name: [DATA_DIR / relative_path for relative_path in relative_paths]
+                for name, relative_paths in self.split_manifest["splits"].items()
+            }
         except Exception as error:
             messagebox.showerror("CNN model could not be loaded", str(error))
             self.destroy()
@@ -402,12 +409,11 @@ class AmharicAIApp(ctk.CTk):
         for child in self.sample_list.winfo_children():
             child.destroy()
         split_name = self.split_var.get()
-        indices = self.split_indices[split_name]
-        chosen = random.sample(indices, min(5, len(indices)))
+        paths = self.split_paths[split_name]
+        chosen = random.sample(paths, min(5, len(paths)))
         self.sample_images = []
-        for dataset_index in chosen:
-            path = Path(self.dataset.samples[dataset_index][0])
-            label = self.dataset.classes[self.dataset.samples[dataset_index][1]]
+        for path in chosen:
+            label = dataset_label_for_path(path)
             with Image.open(path) as image:
                 thumbnail = image.convert("RGB")
                 thumbnail.thumbnail((34, 34), Image.Resampling.LANCZOS)
@@ -516,10 +522,9 @@ class AmharicAIApp(ctk.CTk):
 
     def _automatic_test_worker(self, split_name: str, count: int) -> None:
         try:
-            result = evaluate_indices(
+            result = evaluate_labeled_paths(
                 self.engine,
-                self.dataset,
-                self.split_indices[split_name],
+                self.split_paths[split_name],
                 split_name,
                 limit=count,
                 seed=random.randrange(1_000_000),
