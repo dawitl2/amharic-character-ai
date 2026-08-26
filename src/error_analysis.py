@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import sys
 sys.stdout.reconfigure(encoding='utf-8')
 
-from simple_model import SimpleModel
+from linear_model import LinearModel
 
 # 1. Setup DataLoaders
 transform = transforms.Compose([
@@ -32,7 +32,7 @@ train_loader = DataLoader(Subset(dataset, train_idx), batch_size=4, shuffle=True
 test_loader = DataLoader(Subset(dataset, test_idx), batch_size=4, shuffle=False)
 
 # 2. Train Model quickly
-model = SimpleModel()
+model = LinearModel()
 loss_function = nn.CrossEntropyLoss()
 optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
 

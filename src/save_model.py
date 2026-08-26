@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 import json
 import os
 
-from simple_model import SimpleModel
+from linear_model import LinearModel
 
 # 1. Setup DataLoader to train the model quickly
 transform = transforms.Compose([
@@ -17,7 +17,7 @@ dataset = ImageFolder(root="data", transform=transform)
 train_loader = DataLoader(dataset, batch_size=4, shuffle=True)
 
 # 2. Train the Model
-model = SimpleModel()
+model = LinearModel()
 loss_function = nn.CrossEntropyLoss()
 optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
 
@@ -32,7 +32,7 @@ for epoch in range(1, 15):
 
 # 3. Save the Model
 os.makedirs("models", exist_ok=True)
-model_path = "models/simple_model_weights.pth"
+model_path = "models/linear_model_weights.pth"
 
 # Save only the learned weights (state_dict), which is best practice in PyTorch
 torch.save(model.state_dict(), model_path)
@@ -43,7 +43,7 @@ config = {
     "image_width": 64,
     "image_height": 64,
     "channels": 1,
-    "architecture": "SimpleModel (Flatten -> Linear)",
+    "architecture": "LinearModel (Flatten -> Linear)",
     "classes": dataset.classes,
     "class_to_idx": dataset.class_to_idx
 }

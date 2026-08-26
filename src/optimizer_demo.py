@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
-from simple_model import SimpleModel
+from linear_model import LinearModel
 
-model = SimpleModel()
+model = LinearModel()
 optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
 
 fake_images = torch.randn(4, 1, 64, 64)

@@ -7,7 +7,7 @@ from torchvision import transforms
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Subset, DataLoader
 
-from simple_model import SimpleModel
+from linear_model import LinearModel
 
 # 1. Setup DataLoaders to INTENTIONALLY overfit
 # We will use a tiny training set (e.g., 6 images) and validate on the rest.
@@ -28,7 +28,7 @@ train_idx, val_idx = train_test_split(
 train_loader = DataLoader(Subset(dataset, train_idx), batch_size=2, shuffle=True)
 val_loader = DataLoader(Subset(dataset, val_idx), batch_size=4, shuffle=False)
 
-model = SimpleModel()
+model = LinearModel()
 loss_function = nn.CrossEntropyLoss()
 # Use a slightly higher learning rate to make it overfit faster
 optimizer = optim.SGD(model.parameters(), lr=0.05) 

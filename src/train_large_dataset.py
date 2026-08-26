@@ -7,7 +7,7 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import Subset, DataLoader
 import matplotlib.pyplot as plt
 
-from simple_model import SimpleModel
+from linear_model import LinearModel
 
 print("--- Training on the MASSIVE Dataset ---")
 
@@ -41,7 +41,7 @@ test_loader = DataLoader(Subset(dataset, test_idx), batch_size=batch_size, shuff
 print(f"Train size: {len(train_idx)}, Val size: {len(val_idx)}, Test size: {len(test_idx)}")
 
 # 2. Setup Model, Loss, and Optimizer
-model = SimpleModel(num_classes=len(dataset.classes))
+model = LinearModel(num_classes=len(dataset.classes))
 loss_function = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=0.01)
 

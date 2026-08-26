@@ -6,7 +6,7 @@ from PIL import Image
 import sys
 sys.stdout.reconfigure(encoding='utf-8')
 
-from simple_model import SimpleModel
+from linear_model import LinearModel
 
 print("--- Phase 20: Loading the Model ---")
 
@@ -25,10 +25,10 @@ idx_to_class = {v: k for k, v in config["class_to_idx"].items()}
 
 # 2. Recreate Model Architecture
 # The code must EXACTLY match the architecture that was used to save the weights!
-model = SimpleModel()
+model = LinearModel()
 
 # 3. Load Saved Weights
-weights_path = "models/simple_model_weights.pth"
+weights_path = "models/linear_model_weights.pth"
 model.load_state_dict(torch.load(weights_path))
 print(f"Successfully loaded learned weights from '{weights_path}'")
 

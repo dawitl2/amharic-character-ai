@@ -7,7 +7,7 @@ from torchvision import transforms
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Subset, DataLoader
 
-from simple_model import SimpleModel
+from linear_model import LinearModel
 
 # 1. Setup DataLoader
 transform = transforms.Compose([
@@ -26,7 +26,7 @@ train_dataset = Subset(dataset, train_indices)
 train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True)
 
 # 2. Setup Model, Loss, and Optimizer
-model = SimpleModel()
+model = LinearModel()
 loss_function = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=0.01)
 
