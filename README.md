@@ -43,12 +43,21 @@ When the dataset or character mapping has been replaced, start a clean run with:
 
 `--fresh` validates the dataset first, then moves old CNN checkpoints, metrics, configuration, and split data into a timestamped `models/archive/` directory. It does not delete them. Without `--fresh`, training resumes only from a strictly compatible latest checkpoint.
 
+For CPU training, two persistent background image-loading workers can reduce the PNG decoding bottleneck:
+
+```powershell
+.venv\Scripts\python.exe src\train.py --max-epochs 200 --num-workers 2
+```
+
+Do not repeat `--fresh` after the new split manifest has already been created unless you intentionally want to archive it and rebuild the split. Split creation and long epochs display progress while they run.
+
 Documented defaults:
 
 - maximum cumulative epochs: 200
 - optimizer: SGD
 - learning rate: 0.01
 - batch size: 64
+- data-loader workers: 0 by default; `--num-workers 2` is the conservative CPU option
 - loss: `CrossEntropyLoss` on raw logits
 - scheduler: `ReduceLROnPlateau`, factor 0.5, patience 5, minimum LR 0.00001
 - early stopping: patience 15, minimum validation-accuracy change 0.05 percentage points
