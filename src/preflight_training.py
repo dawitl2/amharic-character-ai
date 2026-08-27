@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import random
 import sys
 from collections import defaultdict
@@ -14,7 +15,6 @@ from PIL import Image
 from torchvision.datasets import ImageFolder
 
 from cnn_model import CharacterCNN
-from data_splits import canonical_content_digest
 from dataset_contract import validate_training_dataset
 from project_paths import DATA_DIR
 
@@ -37,12 +37,14 @@ def select_paths(dataset: ImageFolder, images_per_class: int | None) -> list[tup
 def inspect_image(item: tuple[Path, str]) -> tuple[Path, str, str]:
     path, class_name = item
     with Image.open(path) as image:
-        image.verify()
-    with Image.open(path) as image:
-        extrema = image.convert("L").getextrema()
+        grayscale = image.convert("L")
+        grayscale.load()
+        extrema = grayscale.getextrema()
+        normalized = grayscale.resize((64, 64), Image.Resampling.BILINEAR)
+        digest = hashlib.sha256(normalized.tobytes()).hexdigest()
     if extrema[0] == extrema[1]:
         raise ValueError(f"Image has no visible intensity variation: {path}")
-    return path, class_name, canonical_content_digest(path)
+    return path, class_name, digest
 
 
 def verify_images(
