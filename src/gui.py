@@ -14,6 +14,7 @@ import customtkinter as ctk
 from PIL import Image
 
 from diagnostics import evaluate_labeled_paths
+from dataset_contract import load_expected_characters
 from inference import InferenceEngine, Prediction, dataset_label_for_path
 from project_paths import DATA_DIR, SPLIT_MANIFEST_PATH
 
@@ -34,6 +35,25 @@ SUCCESS = "#157347"
 DANGER = "#B42318"
 SOFT_BLUE = "#EDF3FC"
 
+
+def model_information(metadata: dict) -> dict[str, object]:
+    dataset = metadata.get("dataset", {})
+    scheduler = metadata.get("scheduler") or {}
+    return {
+        "cumulative_epochs": metadata.get("cumulative_epochs_trained", "Unknown"),
+        "train_samples": dataset.get("train", "Unknown"),
+        "validation_samples": dataset.get("validation", "Unknown"),
+        "test_samples": dataset.get("test", "Unknown"),
+        "scheduler": scheduler.get("name", "None"),
+    }
+
+
+def format_top_predictions(prediction: Prediction) -> str:
+    return "   ".join(
+        f"{rank}. {candidate.character} — {candidate.probability:.1%}"
+        for rank, candidate in enumerate(prediction.top_predictions, start=1)
+    )
+
 class AmharicAIApp(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -44,10 +64,21 @@ class AmharicAIApp(ctk.CTk):
 
         try:
             self.engine = InferenceEngine.from_artifacts()
+            expected_mapping = {
+                character: index
+                for index, character in enumerate(load_expected_characters())
+            }
+            if self.engine.bundle.metadata["class_to_idx"] != expected_mapping:
+                raise RuntimeError(
+                    "The active CNN checkpoint does not match src/characters.json. "
+                    "Train the full dataset with --fresh before opening the GUI."
+                )
             with SPLIT_MANIFEST_PATH.open("r", encoding="utf-8") as handle:
                 self.split_manifest = json.load(handle)
             if self.split_manifest.get("class_to_idx") != self.engine.bundle.metadata["class_to_idx"]:
-                print("Warning: Data split class mapping differs from the active CNN checkpoint. Proceeding with caution.")
+                raise RuntimeError(
+                    "Data split class mapping differs from the active CNN checkpoint."
+                )
             self.split_paths = {
                 name: [DATA_DIR / relative_path for relative_path in relative_paths]
                 for name, relative_paths in self.split_manifest.get("splits", {}).items()
@@ -146,6 +177,11 @@ class AmharicAIApp(ctk.CTk):
         
         self.confidence_label = ctk.CTkLabel(res_frame, text="Confidence: --", font=("Segoe UI", 16), text_color=MUTED)
         self.confidence_label.pack(pady=5)
+
+        self.top_predictions_label = ctk.CTkLabel(
+            res_frame, text="Top predictions: --", font=("Segoe UI", 13), text_color=MUTED
+        )
+        self.top_predictions_label.pack(pady=5)
         
         self.correct_answer_label = ctk.CTkLabel(res_frame, text="Correct Answer: --", font=("Segoe UI", 14), text_color=TEXT)
         self.correct_answer_label.pack(pady=5)
@@ -178,6 +214,7 @@ class AmharicAIApp(ctk.CTk):
         content.pack(fill="both", expand=True, padx=20, pady=20)
         
         meta = self.engine.bundle.metadata
+        info = model_information(meta)
         
         def add_info(label, value):
             f = ctk.CTkFrame(content, fg_color="transparent")
@@ -190,17 +227,16 @@ class AmharicAIApp(ctk.CTk):
         add_info("Best Validation Accuracy", self._format_accuracy(meta.get("best_validation_accuracy")))
         add_info("Test Accuracy", self._format_accuracy(meta.get("test_accuracy")))
         add_info("Best Epoch", meta.get("epoch_of_best_checkpoint", "Unknown"))
-        add_info("Cumulative Epochs", meta.get("cumulative_epochs", "Unknown"))
+        add_info("Cumulative Epochs", info["cumulative_epochs"])
         add_info("Batch Size", meta.get("batch_size", "Unknown"))
         add_info("Optimizer", meta.get("optimizer", {}).get("name", "Unknown"))
         add_info("Learning Rate", meta.get("optimizer", {}).get("learning_rate", "Unknown"))
-        add_info("Scheduler", "ReduceLROnPlateau" if "scheduler" in meta else "None")
+        add_info("Scheduler", info["scheduler"])
         add_info("Checkpoint Path", self.engine.bundle.checkpoint_path.resolve())
         
-        split = meta.get("split", {})
-        add_info("Train Samples", split.get("counts", {}).get("train", "Unknown"))
-        add_info("Validation Samples", split.get("counts", {}).get("validation", "Unknown"))
-        add_info("Test Samples", split.get("counts", {}).get("test", "Unknown"))
+        add_info("Train Samples", info["train_samples"])
+        add_info("Validation Samples", info["validation_samples"])
+        add_info("Test Samples", info["test_samples"])
 
     def _build_status_bar(self) -> None:
         self.status_bar = ctk.CTkFrame(self, fg_color=SURFACE, corner_radius=0, height=32)
@@ -260,6 +296,7 @@ class AmharicAIApp(ctk.CTk):
         self.preview.configure(image=self.preview_image, text="")
         self.predicted_character_label.configure(text="...")
         self.confidence_label.configure(text="Predicting...")
+        self.top_predictions_label.configure(text="Top predictions: --")
         self.status_label.configure(text=f"Predicting {self.current_path.name}")
         threading.Thread(target=self._predict_worker, args=(self.current_path, generation), daemon=True).start()
 
@@ -277,6 +314,9 @@ class AmharicAIApp(ctk.CTk):
         self.current_prediction = prediction
         self.predicted_character_label.configure(text=prediction.predicted_character)
         self.confidence_label.configure(text=f"Confidence: {prediction.confidence:.1%}")
+        self.top_predictions_label.configure(
+            text=f"Top predictions: {format_top_predictions(prediction)}"
+        )
         
         self.status_label.configure(text="Ready")
         self._render_correctness()
@@ -284,12 +324,7 @@ class AmharicAIApp(ctk.CTk):
     def _render_correctness(self) -> None:
         if self.current_path is None:
             return
-        # If it is uploaded external image, do not pretend it has a known label
-        is_external = "data" not in self.current_path.parts
-        if is_external:
-            correct_answer = "Unknown"
-        else:
-            correct_answer = dataset_label_for_path(self.current_path) or "Unknown"
+        correct_answer = dataset_label_for_path(self.current_path) or "Unknown"
 
         self.correct_answer_label.configure(text=f"Correct Answer: {correct_answer}")
         
@@ -312,10 +347,18 @@ class AmharicAIApp(ctk.CTk):
 
     def _automatic_test_worker(self, split_name: str, count: int) -> None:
         try:
+            if not self.manifest_is_checkpoint_split:
+                raise RuntimeError(
+                    "The active split was not used by this checkpoint. "
+                    "Fresh training is required before held-out testing."
+                )
             paths = [p for p in self.split_paths.get(split_name, []) if p.exists()]
+            if not paths:
+                raise RuntimeError(f"No current images exist in the {split_name} split.")
             result = evaluate_labeled_paths(self.engine, paths, split_name, limit=count, seed=random.randrange(1_000_000))
             lines = [
                 f"Partition: {split_name}",
+                "Held out from checkpoint: YES",
                 f"Correct: {result.correct}",
                 f"Wrong: {result.total - result.correct}",
                 f"Accuracy: {result.accuracy:.2f}%",
