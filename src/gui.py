@@ -224,7 +224,7 @@ class AmharicAIApp(ctk.CTk):
         for child in self.sample_list.winfo_children():
             child.destroy()
         split_name = self.split_var.get()
-        paths = self.split_paths.get(split_name, [])
+        paths = [p for p in self.split_paths.get(split_name, []) if p.exists()]
         if not paths:
             return
         chosen = random.sample(paths, min(5, len(paths)))
@@ -312,7 +312,8 @@ class AmharicAIApp(ctk.CTk):
 
     def _automatic_test_worker(self, split_name: str, count: int) -> None:
         try:
-            result = evaluate_labeled_paths(self.engine, self.split_paths[split_name], split_name, limit=count, seed=random.randrange(1_000_000))
+            paths = [p for p in self.split_paths.get(split_name, []) if p.exists()]
+            result = evaluate_labeled_paths(self.engine, paths, split_name, limit=count, seed=random.randrange(1_000_000))
             lines = [
                 f"Partition: {split_name}",
                 f"Correct: {result.correct}",
