@@ -9,7 +9,7 @@ from torchvision.datasets import ImageFolder
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from data_splits import create_split_manifest  # noqa: E402
+from data_splits import create_split_manifest, load_or_create_split_manifest  # noqa: E402
 
 
 class DataSplitTests(unittest.TestCase):
@@ -57,6 +57,18 @@ class DataSplitTests(unittest.TestCase):
         all_paths = [path for paths in first["splits"].values() for path in paths]
         self.assertEqual(len(all_paths), len(self.dataset))
         self.assertEqual(len(set(all_paths)), len(self.dataset))
+
+    def test_replaced_image_content_invalidates_existing_manifest(self):
+        manifest_path = self.root / "split.json"
+        first = load_or_create_split_manifest(self.dataset, self.root, manifest_path)
+        changed_path = self.root / "a" / "independent_00.png"
+        Image.new("L", (16, 16), 199).save(changed_path)
+        refreshed_dataset = ImageFolder(self.root)
+        second = load_or_create_split_manifest(
+            refreshed_dataset, self.root, manifest_path
+        )
+        self.assertNotEqual(first["dataset_signature"], second["dataset_signature"])
+        self.assertNotEqual(first["inventory_signature"], second["inventory_signature"])
 
 
 if __name__ == "__main__":

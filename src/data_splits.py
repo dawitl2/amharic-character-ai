@@ -18,7 +18,7 @@ from checkpoints import save_json_atomic
 
 SPLIT_SEED = 42
 SPLIT_RATIOS = {"train": 0.70, "validation": 0.15, "test": 0.15}
-SPLIT_STRATEGY = "stratified_provenance_and_duplicate_groups_v1"
+SPLIT_STRATEGY = "stratified_provenance_and_duplicate_groups_v2"
 _VARIANT_SUFFIX = re.compile(
     r"(?i)(?:[_-](?:aug(?:mentation)?|variant|copy|rotated|shifted|blurred)[_-]?\d+)$"
 )
@@ -61,7 +61,28 @@ def _dataset_signature(records: list[dict[str, Any]], class_to_idx: dict[str, in
     digest = hashlib.sha256()
     digest.update(json.dumps(class_to_idx, ensure_ascii=False, sort_keys=True).encode("utf-8"))
     for record in sorted(records, key=lambda item: item["path"]):
-        digest.update(f"\n{record['path']}:{record['class_index']}".encode("utf-8"))
+        digest.update(
+            f"\n{record['path']}:{record['class_index']}:{record['group']}".encode("utf-8")
+        )
+    return digest.hexdigest()
+
+
+def _inventory_signature(dataset, data_root: Path) -> str:
+    """Quickly detect replaced files before reusing an expensive split manifest."""
+    root = data_root.resolve()
+    digest = hashlib.sha256()
+    digest.update(
+        json.dumps(dataset.class_to_idx, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    )
+    for raw_path, class_index in sorted(dataset.samples):
+        path = Path(raw_path).resolve()
+        stat = path.stat()
+        relative_path = path.relative_to(root).as_posix()
+        digest.update(
+            f"\n{relative_path}:{int(class_index)}:{stat.st_size}:{stat.st_mtime_ns}".encode(
+                "utf-8"
+            )
+        )
     return digest.hexdigest()
 
 
@@ -103,6 +124,7 @@ def create_split_manifest(dataset, data_root: Path, *, seed: int = SPLIT_SEED) -
         "ratios": SPLIT_RATIOS,
         "class_to_idx": dataset.class_to_idx,
         "dataset_signature": _dataset_signature(records, dataset.class_to_idx),
+        "inventory_signature": _inventory_signature(dataset, data_root),
         "dataset_total": len(records),
         "counts": {name: len(paths) for name, paths in split_paths.items()},
         "duplicate_or_variant_group_count": duplicate_group_count,
@@ -125,6 +147,8 @@ def load_or_create_split_manifest(dataset, data_root: Path, manifest_path: Path)
             manifest.get("strategy") == SPLIT_STRATEGY
             and manifest.get("class_to_idx") == dataset.class_to_idx
             and current_paths == saved_paths
+            and manifest.get("inventory_signature")
+            == _inventory_signature(dataset, data_root)
         ):
             return manifest
 
