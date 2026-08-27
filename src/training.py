@@ -49,6 +49,7 @@ class TrainingSettings:
     seed: int = 42
     fresh_start: bool = False
     progress_interval_batches: int = 250
+    num_workers: int = 0
 
 
 @dataclass(frozen=True)
@@ -100,12 +101,18 @@ def create_training_data(
     generator = torch.Generator().manual_seed(settings.seed)
 
     def loader(split_name: str, *, shuffle: bool) -> DataLoader:
+        options = {
+            "dataset": Subset(dataset, indices[split_name]),
+            "batch_size": settings.batch_size,
+            "shuffle": shuffle,
+            "generator": generator if shuffle else None,
+            "num_workers": settings.num_workers,
+            "persistent_workers": settings.num_workers > 0,
+        }
+        if settings.num_workers > 0:
+            options["prefetch_factor"] = 2
         return DataLoader(
-            Subset(dataset, indices[split_name]),
-            batch_size=settings.batch_size,
-            shuffle=shuffle,
-            generator=generator if shuffle else None,
-            num_workers=0,
+            **options,
         )
 
     return TrainingData(
@@ -233,6 +240,7 @@ def build_training_metadata(
         "cumulative_epochs_trained": progress.cumulative_epochs,
         "optimizer": {"name": settings.optimizer_name, "learning_rate": settings.learning_rate},
         "batch_size": settings.batch_size,
+        "data_loader_workers": settings.num_workers,
         "scheduler": {
             "name": "ReduceLROnPlateau",
             "mode": "max",
@@ -393,6 +401,7 @@ def run_training(settings: TrainingSettings) -> dict[str, Any]:
     print(f"Optimizer: {settings.optimizer_name}")
     print(f"Learning rate: {settings.learning_rate}")
     print(f"Batch size: {settings.batch_size}")
+    print(f"Data loader workers: {settings.num_workers}")
     print(
         "Scheduler: ReduceLROnPlateau "
         f"(factor={settings.scheduler_factor}, patience={settings.scheduler_patience}, "

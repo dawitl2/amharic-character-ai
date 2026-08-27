@@ -30,6 +30,10 @@ class TrainingTests(unittest.TestCase):
         self.assertFalse(parse_args([]).fresh)
         self.assertTrue(parse_args(["--fresh"]).fresh)
 
+    def test_data_loader_workers_can_be_selected_explicitly(self):
+        self.assertEqual(parse_args([]).num_workers, 0)
+        self.assertEqual(parse_args(["--num-workers", "2"]).num_workers, 2)
+
     def test_split_coverage_requires_every_class_in_every_partition(self):
         dataset = SimpleNamespace(
             classes=["a", "b"],
