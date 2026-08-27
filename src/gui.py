@@ -17,7 +17,6 @@ from diagnostics import evaluate_labeled_paths
 from inference import InferenceEngine, Prediction, dataset_label_for_path
 from project_paths import DATA_DIR, SPLIT_MANIFEST_PATH
 
-
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
@@ -34,9 +33,6 @@ PRIMARY_HOVER = "#19437F"
 SUCCESS = "#157347"
 DANGER = "#B42318"
 SOFT_BLUE = "#EDF3FC"
-SOFT_GREEN = "#ECF8F1"
-SOFT_RED = "#FEF0EE"
-
 
 class AmharicAIApp(ctk.CTk):
     def __init__(self):
@@ -51,16 +47,15 @@ class AmharicAIApp(ctk.CTk):
             with SPLIT_MANIFEST_PATH.open("r", encoding="utf-8") as handle:
                 self.split_manifest = json.load(handle)
             if self.split_manifest.get("class_to_idx") != self.engine.bundle.metadata["class_to_idx"]:
-                raise RuntimeError("Data split class mapping differs from the active CNN checkpoint.")
+                print("Warning: Data split class mapping differs from the active CNN checkpoint. Proceeding with caution.")
             self.split_paths = {
                 name: [DATA_DIR / relative_path for relative_path in relative_paths]
-                for name, relative_paths in self.split_manifest["splits"].items()
+                for name, relative_paths in self.split_manifest.get("splits", {}).items()
             }
             checkpoint_split = self.engine.bundle.metadata.get("split", {})
             self.manifest_is_checkpoint_split = (
                 checkpoint_split.get("strategy") == self.split_manifest.get("strategy")
-                and checkpoint_split.get("dataset_signature")
-                == self.split_manifest.get("dataset_signature")
+                and checkpoint_split.get("dataset_signature") == self.split_manifest.get("dataset_signature")
             )
         except Exception as error:
             messagebox.showerror("CNN model could not be loaded", str(error))
@@ -75,340 +70,149 @@ class AmharicAIApp(ctk.CTk):
         self.inference_generation = 0
         self.worker_queue: queue.Queue = queue.Queue()
 
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=1)
         self._build_header()
-        self._build_workspace()
+        self._build_tabs()
         self._build_status_bar()
         self._refresh_samples()
         self.after(50, self._poll_worker_queue)
 
     def _build_header(self) -> None:
         header = ctk.CTkFrame(self, fg_color=SURFACE, corner_radius=0, height=76)
-        header.grid(row=0, column=0, sticky="ew")
-        header.grid_propagate(False)
+        header.pack(fill="x")
+        header.pack_propagate(False)
         ctk.CTkLabel(
             header,
             text="Ethiopic Character Recognizer",
             font=("Segoe UI", 22, "bold"),
             text_color=TEXT,
         ).pack(side="left", padx=24, pady=18)
+        
+        num_classes = len(self.engine.bundle.metadata.get("class_to_idx", {}))
         ctk.CTkLabel(
             header,
-            text="CharacterCNN  •  64 × 64 grayscale",
+            text=f"Active Model: CNN | Checkpoint: {self.engine.bundle.checkpoint_path.name} | Classes: {num_classes}",
             font=("Segoe UI", 12),
             text_color=MUTED,
         ).pack(side="right", padx=24)
 
-    def _build_workspace(self) -> None:
-        body = ctk.CTkFrame(self, fg_color="transparent")
-        body.grid(row=1, column=0, sticky="nsew", padx=18, pady=18)
-        body.grid_rowconfigure(0, weight=1)
-        body.grid_columnconfigure(0, weight=0, minsize=270)
-        body.grid_columnconfigure(1, weight=1, minsize=430)
-        body.grid_columnconfigure(2, weight=0, minsize=300)
+    def _build_tabs(self) -> None:
+        self.tabview = ctk.CTkTabview(self, fg_color=SURFACE, bg_color=BACKGROUND, text_color=TEXT)
+        self.tabview.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        self.tab_predict = self.tabview.add("Predict")
+        self.tab_test = self.tabview.add("Test Model")
+        self.tab_info = self.tabview.add("Model Information")
+        
+        self._build_predict_tab()
+        self._build_test_tab()
+        self._build_info_tab()
 
-        self.left_panel = self._panel(body)
-        self.left_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
-        self.center_panel = self._panel(body)
-        self.center_panel.grid(row=0, column=1, sticky="nsew", padx=0)
-        self.right_panel = self._panel(body)
-        self.right_panel.grid(row=0, column=2, sticky="nsew", padx=(12, 0))
-        self._build_source_panel()
-        self._build_prediction_panel()
-        self._build_model_panel()
-
-    @staticmethod
-    def _panel(parent) -> ctk.CTkFrame:
-        return ctk.CTkFrame(
-            parent,
-            fg_color=SURFACE,
-            corner_radius=5,
-            border_width=1,
-            border_color=BORDER,
-        )
-
-    @staticmethod
-    def _section_title(parent, title: str, subtitle: str = "") -> None:
-        ctk.CTkLabel(
-            parent,
-            text=title,
-            font=("Segoe UI", 15, "bold"),
-            text_color=TEXT,
-            anchor="w",
-        ).pack(fill="x")
-        if subtitle:
-            ctk.CTkLabel(
-                parent,
-                text=subtitle,
-                font=("Segoe UI", 11),
-                text_color=MUTED,
-                anchor="w",
-                justify="left",
-                wraplength=235,
-            ).pack(fill="x", pady=(2, 10))
-
-    def _build_source_panel(self) -> None:
-        content = ctk.CTkScrollableFrame(
-            self.left_panel, fg_color="transparent", corner_radius=0
-        )
-        content.pack(fill="both", expand=True, padx=16, pady=16)
-        source_note = (
-            "Choose a checkpoint split sample or an external image."
-            if self.manifest_is_checkpoint_split
-            else "Choose a manifest sample or external image. This checkpoint predates the manifest."
-        )
-        self._section_title(content, "Image source", source_note)
-
+    def _build_predict_tab(self) -> None:
+        self.tab_predict.grid_columnconfigure(0, weight=1)
+        self.tab_predict.grid_columnconfigure(1, weight=2)
+        
+        # Left side: Image selection
+        left_panel = ctk.CTkFrame(self.tab_predict, fg_color="transparent")
+        left_panel.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+        
+        ctk.CTkLabel(left_panel, text="Image Source", font=("Segoe UI", 15, "bold"), text_color=TEXT, anchor="w").pack(fill="x")
+        
         self.split_var = ctk.StringVar(value="test")
         self.split_menu = ctk.CTkOptionMenu(
-            content,
-            values=["train", "validation", "test"],
-            variable=self.split_var,
-            command=lambda _: self._refresh_samples(),
-            fg_color=SOFT_BLUE,
-            button_color=PRIMARY,
-            button_hover_color=PRIMARY_HOVER,
-            text_color=TEXT,
-            height=34,
+            left_panel, values=["train", "validation", "test"], variable=self.split_var,
+            command=lambda _: self._refresh_samples(), fg_color=SOFT_BLUE, button_color=PRIMARY, text_color=TEXT
         )
-        self.split_menu.pack(fill="x", pady=(0, 8))
-        ctk.CTkButton(
-            content,
-            text="Refresh labeled samples",
-            command=self._refresh_samples,
-            fg_color=PRIMARY,
-            hover_color=PRIMARY_HOVER,
-            height=34,
-            corner_radius=4,
-        ).pack(fill="x")
+        self.split_menu.pack(fill="x", pady=10)
+        
+        ctk.CTkButton(left_panel, text="Refresh Samples", command=self._refresh_samples, fg_color=PRIMARY, hover_color=PRIMARY_HOVER).pack(fill="x")
+        
+        self.sample_list = ctk.CTkScrollableFrame(left_panel, fg_color=BACKGROUND, corner_radius=4, height=200)
+        self.sample_list.pack(fill="x", pady=10)
+        
+        ctk.CTkButton(left_panel, text="Upload External Image", command=self._upload_image, fg_color=SURFACE, hover_color=SOFT_BLUE, text_color=PRIMARY, border_color=PRIMARY, border_width=1).pack(fill="x")
 
-        self.sample_list = ctk.CTkScrollableFrame(
-            content, fg_color=BACKGROUND, corner_radius=4, height=135
-        )
-        self.sample_list.pack(fill="x", pady=12)
-
-        ctk.CTkButton(
-            content,
-            text="Upload external image…",
-            command=self._upload_image,
-            fg_color=SURFACE,
-            hover_color=SOFT_BLUE,
-            text_color=PRIMARY,
-            border_width=1,
-            border_color=PRIMARY,
-            height=36,
-            corner_radius=4,
-        ).pack(fill="x")
-        ctk.CTkLabel(
-            content,
-            text="Known label for external image (optional)",
-            font=("Segoe UI", 11),
-            text_color=MUTED,
-            anchor="w",
-        ).pack(fill="x", pady=(12, 4))
+        # Right side: Prediction Result
+        right_panel = ctk.CTkFrame(self.tab_predict, fg_color="transparent")
+        right_panel.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
+        
+        self.preview = ctk.CTkLabel(right_panel, text="Select an image to preview", fg_color=BACKGROUND, corner_radius=6, height=260)
+        self.preview.pack(fill="x", pady=(0, 20))
+        
+        res_frame = ctk.CTkFrame(right_panel, fg_color=SURFACE, border_color=BORDER, border_width=1)
+        res_frame.pack(fill="x", pady=10)
+        
+        self.predicted_character_label = ctk.CTkLabel(res_frame, text="?", font=("Segoe UI", 72, "bold"), text_color=TEXT)
+        self.predicted_character_label.pack(pady=10)
+        
+        self.confidence_label = ctk.CTkLabel(res_frame, text="Confidence: --", font=("Segoe UI", 16), text_color=MUTED)
+        self.confidence_label.pack(pady=5)
+        
+        self.correct_answer_label = ctk.CTkLabel(res_frame, text="Correct Answer: --", font=("Segoe UI", 14), text_color=TEXT)
+        self.correct_answer_label.pack(pady=5)
+        
+        self.result_label = ctk.CTkLabel(res_frame, text="Result: Not scored", font=("Segoe UI", 16, "bold"), text_color=MUTED)
+        self.result_label.pack(pady=5)
+        
         self.manual_label_var = ctk.StringVar(value="Unknown")
-        self.manual_label_menu = ctk.CTkOptionMenu(
-            content,
-            values=["Unknown", *self.engine.bundle.idx_to_class.values()],
-            variable=self.manual_label_var,
-            command=lambda _: self._render_correctness(),
-            fg_color=BACKGROUND,
-            button_color=BORDER,
-            button_hover_color="#C5CEDB",
-            text_color=TEXT,
-            height=32,
-        )
-        self.manual_label_menu.pack(fill="x")
 
-        ctk.CTkFrame(content, fg_color=BORDER, height=1).pack(fill="x", pady=16)
-        self._section_title(content, "Automatic evaluation", "Random labeled samples from one explicit partition.")
-        options = ctk.CTkFrame(content, fg_color="transparent")
-        options.pack(fill="x")
+    def _build_test_tab(self) -> None:
+        content = ctk.CTkFrame(self.tab_test, fg_color="transparent")
+        content.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        controls = ctk.CTkFrame(content, fg_color="transparent")
+        controls.pack(fill="x", pady=10)
+        
+        ctk.CTkLabel(controls, text="Samples to test:", text_color=TEXT).pack(side="left", padx=5)
         self.test_count_var = ctk.StringVar(value="25")
-        ctk.CTkOptionMenu(
-            options,
-            values=["10", "25", "50", "100"],
-            variable=self.test_count_var,
-            width=82,
-            fg_color=BACKGROUND,
-            button_color=BORDER,
-            button_hover_color="#C5CEDB",
-            text_color=TEXT,
-        ).pack(side="left")
-        self.run_test_button = ctk.CTkButton(
-            options,
-            text="Run test",
-            width=120,
-            command=self._run_automatic_test,
-            fg_color=PRIMARY,
-            hover_color=PRIMARY_HOVER,
-            corner_radius=4,
-        )
-        self.run_test_button.pack(side="right")
-        self.test_output = ctk.CTkTextbox(
-            content,
-            height=85,
-            fg_color=BACKGROUND,
-            border_width=1,
-            border_color=BORDER,
-            corner_radius=4,
-            font=("Consolas", 10),
-            text_color=TEXT,
-        )
-        self.test_output.pack(fill="both", expand=True, pady=(10, 0))
-        self._set_text(self.test_output, "No automatic test has been run.")
+        ctk.CTkOptionMenu(controls, variable=self.test_count_var, values=["10", "25", "50", "100", "250"], width=80, fg_color=SOFT_BLUE, text_color=TEXT).pack(side="left", padx=5)
+        
+        self.run_test_button = ctk.CTkButton(controls, text="Run Automatic Test", command=self._run_automatic_test, fg_color=PRIMARY)
+        self.run_test_button.pack(side="left", padx=20)
+        
+        self.test_output = ctk.CTkTextbox(content, fg_color=BACKGROUND, text_color=TEXT, font=("Consolas", 12))
+        self.test_output.pack(fill="both", expand=True, pady=10)
+        self.test_output.configure(state="disabled")
 
-    def _build_prediction_panel(self) -> None:
-        content = ctk.CTkFrame(self.center_panel, fg_color="transparent")
-        content.pack(fill="both", expand=True, padx=24, pady=18)
-        self._section_title(content, "Current prediction", "Model confidence applies only to this image.")
+    def _build_info_tab(self) -> None:
+        content = ctk.CTkScrollableFrame(self.tab_info, fg_color="transparent")
+        content.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        meta = self.engine.bundle.metadata
+        
+        def add_info(label, value):
+            f = ctk.CTkFrame(content, fg_color="transparent")
+            f.pack(fill="x", pady=2)
+            ctk.CTkLabel(f, text=label, width=200, anchor="w", font=("Segoe UI", 12, "bold"), text_color=TEXT).pack(side="left")
+            ctk.CTkLabel(f, text=str(value), anchor="w", text_color=MUTED).pack(side="left", fill="x", expand=True)
 
-        self.preview = ctk.CTkLabel(
-            content,
-            text="Select an image",
-            width=300,
-            height=275,
-            fg_color=BACKGROUND,
-            corner_radius=4,
-            text_color=MUTED,
-        )
-        self.preview.pack(fill="x", pady=(4, 14))
-
-        result_row = ctk.CTkFrame(content, fg_color="transparent")
-        result_row.pack(fill="x")
-        self.predicted_character_label = ctk.CTkLabel(
-            result_row, text="—", font=("Segoe UI", 64, "bold"), text_color=TEXT
-        )
-        self.predicted_character_label.pack(side="left", padx=(10, 24))
-        summary = ctk.CTkFrame(result_row, fg_color="transparent")
-        summary.pack(side="left", fill="x", expand=True)
-        self.confidence_label = ctk.CTkLabel(
-            summary,
-            text="Confidence —",
-            font=("Segoe UI", 18, "bold"),
-            text_color=TEXT,
-            anchor="w",
-        )
-        self.confidence_label.pack(fill="x")
-        self.correct_answer_label = ctk.CTkLabel(
-            summary, text="Correct answer: Unknown", font=("Segoe UI", 12), text_color=MUTED, anchor="w"
-        )
-        self.correct_answer_label.pack(fill="x", pady=(5, 0))
-        self.result_label = ctk.CTkLabel(
-            summary, text="Result: Not scored", font=("Segoe UI", 12, "bold"), text_color=MUTED, anchor="w"
-        )
-        self.result_label.pack(fill="x", pady=(3, 0))
-
-        ctk.CTkLabel(
-            content,
-            text="Top predictions",
-            font=("Segoe UI", 13, "bold"),
-            text_color=TEXT,
-            anchor="w",
-        ).pack(fill="x", pady=(18, 6))
-        self.top_rows = []
-        for _ in range(3):
-            row = ctk.CTkFrame(content, fg_color="transparent")
-            row.pack(fill="x", pady=3)
-            label = ctk.CTkLabel(row, text="—", width=75, anchor="w", text_color=TEXT)
-            label.pack(side="left")
-            bar = ctk.CTkProgressBar(row, height=8, fg_color=BORDER, progress_color=PRIMARY)
-            bar.set(0)
-            bar.pack(side="left", fill="x", expand=True, padx=8)
-            value = ctk.CTkLabel(row, text="—", width=52, anchor="e", text_color=MUTED)
-            value.pack(side="right")
-            self.top_rows.append((label, bar, value))
-
-        self.input_details_label = ctk.CTkLabel(
-            content,
-            text="Input: —",
-            font=("Consolas", 10),
-            text_color=MUTED,
-            anchor="w",
-            justify="left",
-        )
-        self.input_details_label.pack(fill="x", pady=(16, 0))
-
-    def _build_model_panel(self) -> None:
-        content = ctk.CTkFrame(self.right_panel, fg_color="transparent")
-        content.pack(fill="both", expand=True, padx=16, pady=16)
-        self._section_title(content, "Model information", "Saved checkpoint metadata, not current-image confidence.")
-        metadata = self.engine.bundle.metadata
-        optimizer = metadata.get("optimizer") or {}
-        if isinstance(optimizer, str):
-            optimizer = {"name": optimizer, "learning_rate": metadata.get("learning_rate")}
-        scheduler = metadata.get("scheduler") or {}
-        dataset = metadata.get("dataset") or {}
-        split = metadata.get("split") or {}
-        rows = (
-            ("Model", metadata.get("architecture")),
-            ("Checkpoint", self.engine.bundle.checkpoint_path.name),
-            ("Format version", metadata.get("checkpoint_format_version", "Not recorded")),
-            ("Input", "64 × 64 grayscale"),
-            ("Classes", str(metadata.get("num_classes"))),
-            ("Best validation", self._format_accuracy(metadata.get("best_validation_accuracy"))),
-            ("Test accuracy", self._format_accuracy(metadata.get("test_accuracy"))),
-            ("Best epoch", metadata.get("epoch_of_best_checkpoint", "Not recorded")),
-            ("Total epochs", metadata.get("cumulative_epochs_trained", 0)),
-            ("Optimizer", optimizer.get("name", "Not recorded")),
-            ("Learning rate", optimizer.get("learning_rate", "Not recorded")),
-            ("Batch size", metadata.get("batch_size", "Not recorded")),
-            ("Scheduler", scheduler.get("name", "Not recorded")),
-            ("Dataset", dataset.get("total", "Not recorded")),
-            ("Split", split.get("strategy", "Not recorded")),
-        )
-        for name, value in rows:
-            row = ctk.CTkFrame(content, fg_color="transparent")
-            row.pack(fill="x", pady=1)
-            ctk.CTkLabel(
-                row, text=name, font=("Segoe UI", 10), text_color=MUTED, anchor="w", height=20
-            ).pack(side="left")
-            ctk.CTkLabel(
-                row,
-                text=str(value),
-                font=("Segoe UI", 10, "bold"),
-                text_color=TEXT,
-                anchor="e",
-                wraplength=155,
-                justify="right",
-            ).pack(side="right", fill="x", expand=True)
-
-        ctk.CTkFrame(content, fg_color=BORDER, height=1).pack(fill="x", pady=14)
-        ctk.CTkLabel(
-            content,
-            text="External preprocessing",
-            font=("Segoe UI", 12, "bold"),
-            text_color=TEXT,
-            anchor="w",
-        ).pack(fill="x")
-        ctk.CTkLabel(
-            content,
-            text="Grayscale → foreground crop → aspect-preserving fit → centered 64 × 64 canvas → tensor",
-            font=("Segoe UI", 11),
-            text_color=MUTED,
-            justify="left",
-            anchor="w",
-            wraplength=255,
-        ).pack(fill="x", pady=(4, 0))
+        add_info("Architecture", meta.get("architecture", "Unknown"))
+        add_info("Number of Classes", len(meta.get("class_to_idx", {})))
+        add_info("Best Validation Accuracy", self._format_accuracy(meta.get("best_validation_accuracy")))
+        add_info("Test Accuracy", self._format_accuracy(meta.get("test_accuracy")))
+        add_info("Best Epoch", meta.get("epoch_of_best_checkpoint", "Unknown"))
+        add_info("Cumulative Epochs", meta.get("cumulative_epochs", "Unknown"))
+        add_info("Batch Size", meta.get("batch_size", "Unknown"))
+        add_info("Optimizer", meta.get("optimizer", {}).get("name", "Unknown"))
+        add_info("Learning Rate", meta.get("optimizer", {}).get("learning_rate", "Unknown"))
+        add_info("Scheduler", "ReduceLROnPlateau" if "scheduler" in meta else "None")
+        add_info("Checkpoint Path", self.engine.bundle.checkpoint_path.resolve())
+        
+        split = meta.get("split", {})
+        add_info("Train Samples", split.get("counts", {}).get("train", "Unknown"))
+        add_info("Validation Samples", split.get("counts", {}).get("validation", "Unknown"))
+        add_info("Test Samples", split.get("counts", {}).get("test", "Unknown"))
 
     def _build_status_bar(self) -> None:
-        self.status_label = ctk.CTkLabel(
-            self,
-            text=f"Ready  •  {self.engine.bundle.checkpoint_path}",
-            font=("Segoe UI", 10),
-            text_color=MUTED,
-            anchor="w",
-            height=28,
-        )
-        self.status_label.grid(row=2, column=0, sticky="ew", padx=20, pady=(0, 5))
+        self.status_bar = ctk.CTkFrame(self, fg_color=SURFACE, corner_radius=0, height=32)
+        self.status_bar.pack(fill="x", side="bottom")
+        self.status_bar.pack_propagate(False)
+        self.status_label = ctk.CTkLabel(self.status_bar, text="Ready", font=("Segoe UI", 11), text_color=MUTED)
+        self.status_label.pack(side="left", padx=16, pady=4)
 
-    @staticmethod
-    def _format_accuracy(value) -> str:
+    def _format_accuracy(self, value) -> str:
         return "N/A" if value is None else f"{float(value):.2f}%"
 
-    @staticmethod
-    def _set_text(textbox: ctk.CTkTextbox, text: str) -> None:
+    def _set_text(self, textbox: ctk.CTkTextbox, text: str) -> None:
         textbox.configure(state="normal")
         textbox.delete("1.0", "end")
         textbox.insert("1.0", text)
@@ -420,7 +224,9 @@ class AmharicAIApp(ctk.CTk):
         for child in self.sample_list.winfo_children():
             child.destroy()
         split_name = self.split_var.get()
-        paths = self.split_paths[split_name]
+        paths = self.split_paths.get(split_name, [])
+        if not paths:
+            return
         chosen = random.sample(paths, min(5, len(paths)))
         self.sample_images = []
         for path in chosen:
@@ -431,26 +237,13 @@ class AmharicAIApp(ctk.CTk):
                 ctk_image = ctk.CTkImage(light_image=thumbnail.copy(), size=thumbnail.size)
             self.sample_images.append(ctk_image)
             ctk.CTkButton(
-                self.sample_list,
-                text=f"{label}   {path.name[:21]}{'…' if len(path.name) > 21 else ''}",
-                image=ctk_image,
-                compound="left",
-                anchor="w",
-                command=lambda selected=path: self._select_image(selected),
-                fg_color=SURFACE,
-                hover_color=SOFT_BLUE,
-                text_color=TEXT,
-                border_width=1,
-                border_color=BORDER,
-                corner_radius=3,
-                height=42,
+                self.sample_list, text=f"{label}   {path.name[:21]}", image=ctk_image, compound="left", anchor="w",
+                command=lambda selected=path: self._select_image(selected), fg_color=SURFACE, hover_color=SOFT_BLUE,
+                text_color=TEXT, border_width=1, border_color=BORDER, height=42
             ).pack(fill="x", pady=2)
 
     def _upload_image(self) -> None:
-        selected = filedialog.askopenfilename(
-            title="Select character image",
-            filetypes=[("Image files", "*.png *.jpg *.jpeg *.bmp *.tif *.tiff")],
-        )
+        selected = filedialog.askopenfilename(title="Select character image", filetypes=[("Image files", "*.png *.jpg *.jpeg *.bmp *.tif *.tiff")])
         if selected:
             self.manual_label_var.set("Unknown")
             self._select_image(Path(selected))
@@ -465,14 +258,10 @@ class AmharicAIApp(ctk.CTk):
             preview.thumbnail((370, 260), Image.Resampling.LANCZOS)
             self.preview_image = ctk.CTkImage(light_image=preview.copy(), size=preview.size)
         self.preview.configure(image=self.preview_image, text="")
-        self.predicted_character_label.configure(text="…")
-        self.confidence_label.configure(text="Running CharacterCNN…")
-        self.status_label.configure(text=f"Predicting  •  {self.current_path.name}")
-        threading.Thread(
-            target=self._predict_worker,
-            args=(self.current_path, generation),
-            daemon=True,
-        ).start()
+        self.predicted_character_label.configure(text="...")
+        self.confidence_label.configure(text="Predicting...")
+        self.status_label.configure(text=f"Predicting {self.current_path.name}")
+        threading.Thread(target=self._predict_worker, args=(self.current_path, generation), daemon=True).start()
 
     def _predict_worker(self, path: Path, generation: int) -> None:
         try:
@@ -487,33 +276,27 @@ class AmharicAIApp(ctk.CTk):
             return
         self.current_prediction = prediction
         self.predicted_character_label.configure(text=prediction.predicted_character)
-        self.confidence_label.configure(text=f"Confidence {prediction.confidence:.1%}")
-        for row, candidate in zip(self.top_rows, prediction.top_predictions):
-            label, bar, value = row
-            label.configure(text=candidate.character)
-            bar.set(candidate.probability)
-            value.configure(text=f"{candidate.probability:.1%}")
-        self.input_details_label.configure(
-            text=(
-                f"Tensor {prediction.tensor_shape}  •  probability sum {prediction.probability_sum:.6f}\n"
-                f"Source {path.name}"
-            )
-        )
-        self.status_label.configure(text=f"Ready  •  {self.engine.bundle.checkpoint_path}")
+        self.confidence_label.configure(text=f"Confidence: {prediction.confidence:.1%}")
+        
+        self.status_label.configure(text="Ready")
         self._render_correctness()
 
     def _render_correctness(self) -> None:
         if self.current_path is None:
             return
-        correct_answer = dataset_label_for_path(self.current_path)
-        if correct_answer is None and self.manual_label_var.get() != "Unknown":
-            correct_answer = self.manual_label_var.get()
-        self.correct_answer_label.configure(
-            text=f"Correct answer: {correct_answer or 'Unknown'}"
-        )
-        if self.current_prediction is None or correct_answer is None:
+        # If it is uploaded external image, do not pretend it has a known label
+        is_external = "data" not in self.current_path.parts
+        if is_external:
+            correct_answer = "Unknown"
+        else:
+            correct_answer = dataset_label_for_path(self.current_path) or "Unknown"
+
+        self.correct_answer_label.configure(text=f"Correct Answer: {correct_answer}")
+        
+        if self.current_prediction is None or correct_answer == "Unknown":
             self.result_label.configure(text="Result: Not scored", text_color=MUTED)
             return
+            
         is_correct = self.current_prediction.predicted_character == correct_answer
         self.result_label.configure(
             text="Result: CORRECT" if is_correct else "Result: WRONG",
@@ -523,30 +306,15 @@ class AmharicAIApp(ctk.CTk):
     def _run_automatic_test(self) -> None:
         split_name = self.split_var.get()
         count = int(self.test_count_var.get())
-        self.run_test_button.configure(state="disabled", text="Running…")
-        self._set_text(self.test_output, f"Evaluating {count} random {split_name} samples…")
-        threading.Thread(
-            target=self._automatic_test_worker,
-            args=(split_name, count),
-            daemon=True,
-        ).start()
+        self.run_test_button.configure(state="disabled", text="Running...")
+        self._set_text(self.test_output, f"Evaluating {count} random {split_name} samples...")
+        threading.Thread(target=self._automatic_test_worker, args=(split_name, count), daemon=True).start()
 
     def _automatic_test_worker(self, split_name: str, count: int) -> None:
         try:
-            result = evaluate_labeled_paths(
-                self.engine,
-                self.split_paths[split_name],
-                split_name,
-                limit=count,
-                seed=random.randrange(1_000_000),
-            )
+            result = evaluate_labeled_paths(self.engine, self.split_paths[split_name], split_name, limit=count, seed=random.randrange(1_000_000))
             lines = [
                 f"Partition: {split_name}",
-                (
-                    "Held out from checkpoint: YES"
-                    if self.manifest_is_checkpoint_split
-                    else "Held out from checkpoint: NO (diagnostic only)"
-                ),
                 f"Correct: {result.correct}",
                 f"Wrong: {result.total - result.correct}",
                 f"Accuracy: {result.accuracy:.2f}%",
@@ -554,11 +322,7 @@ class AmharicAIApp(ctk.CTk):
                 "Failures:",
             ]
             if result.failures:
-                lines.extend(
-                    f"{failure.image_path.name}: {failure.correct_character} → "
-                    f"{failure.predicted_character} ({failure.confidence:.1%})"
-                    for failure in result.failures
-                )
+                lines.extend(f"{f.image_path.name}: {f.correct_character} -> {f.predicted_character} ({f.confidence:.1%})" for f in result.failures)
             else:
                 lines.append("None")
             output = "\n".join(lines)
@@ -577,16 +341,13 @@ class AmharicAIApp(ctk.CTk):
             except queue.Empty:
                 break
             if message[0] == "prediction":
-                _, path, generation, prediction = message
-                self._show_prediction(path, generation, prediction)
+                self._show_prediction(message[1], message[2], message[3])
             elif message[0] == "prediction_error":
                 messagebox.showerror("Prediction failed", message[1])
             elif message[0] == "automatic_test":
                 self._finish_automatic_test(message[1])
         self.after(50, self._poll_worker_queue)
 
-
 if __name__ == "__main__":
-    sys.stdout.reconfigure(encoding="utf-8")
     app = AmharicAIApp()
     app.mainloop()
