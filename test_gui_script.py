@@ -27,8 +27,9 @@ def main() -> None:
     try:
         paths = [p for p in app.split_paths.get("test", []) if p.exists()]
         if not paths:
-            print("WARNING: No test paths exist. Skipping image match check.")
-            return
+            raise RuntimeError(
+                "The active test split has no current images; train with --fresh first."
+            )
         image_path = paths[0]
         direct = app.engine.predict_path(image_path)
         app._select_image(image_path)
