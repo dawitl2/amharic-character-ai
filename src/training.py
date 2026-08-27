@@ -48,6 +48,7 @@ class TrainingSettings:
     early_stopping_min_delta: float = 0.05
     seed: int = 42
     fresh_start: bool = False
+    progress_interval_batches: int = 250
 
 
 @dataclass(frozen=True)
@@ -132,12 +133,37 @@ def validate_split_coverage(dataset, indices: dict[str, list[int]]) -> None:
             )
 
 
-def train_one_epoch(model, loader, loss_function, optimizer, device: torch.device) -> EpochMetrics:
+def _print_batch_progress(
+    phase: str,
+    batch_number: int,
+    batch_count: int,
+    correct: int,
+    total: int,
+) -> None:
+    print(
+        f"{phase}: batch {batch_number:,}/{batch_count:,} "
+        f"({100.0 * batch_number / batch_count:.1f}%), "
+        f"running accuracy {100.0 * correct / total:.2f}%",
+        flush=True,
+    )
+
+
+def train_one_epoch(
+    model,
+    loader,
+    loss_function,
+    optimizer,
+    device: torch.device,
+    *,
+    epoch: int | None = None,
+    progress_interval: int = 250,
+) -> EpochMetrics:
     model.train()
     loss_sum = 0.0
     correct = 0
     total = 0
-    for images, labels in loader:
+    batch_count = len(loader)
+    for batch_number, (images, labels) in enumerate(loader, start=1):
         images, labels = images.to(device), labels.to(device)
         optimizer.zero_grad(set_to_none=True)
         logits = model(images)
@@ -147,22 +173,43 @@ def train_one_epoch(model, loader, loss_function, optimizer, device: torch.devic
         loss_sum += float(loss.item()) * labels.size(0)
         correct += int((logits.argmax(dim=1) == labels).sum().item())
         total += labels.size(0)
+        if epoch is not None and (
+            batch_number % progress_interval == 0 or batch_number == batch_count
+        ):
+            _print_batch_progress(
+                f"Epoch {epoch} training", batch_number, batch_count, correct, total
+            )
     return EpochMetrics(loss_sum / total, 100.0 * correct / total, correct, total)
 
 
-def evaluate_model(model, loader, loss_function, device: torch.device) -> EpochMetrics:
+def evaluate_model(
+    model,
+    loader,
+    loss_function,
+    device: torch.device,
+    *,
+    phase: str | None = None,
+    progress_interval: int = 250,
+) -> EpochMetrics:
     model.eval()
     loss_sum = 0.0
     correct = 0
     total = 0
     with torch.inference_mode():
-        for images, labels in loader:
+        batch_count = len(loader)
+        for batch_number, (images, labels) in enumerate(loader, start=1):
             images, labels = images.to(device), labels.to(device)
             logits = model(images)
             loss = loss_function(logits, labels)
             loss_sum += float(loss.item()) * labels.size(0)
             correct += int((logits.argmax(dim=1) == labels).sum().item())
             total += labels.size(0)
+            if phase is not None and (
+                batch_number % progress_interval == 0 or batch_number == batch_count
+            ):
+                _print_batch_progress(
+                    phase, batch_number, batch_count, correct, total
+                )
     return EpochMetrics(loss_sum / total, 100.0 * correct / total, correct, total)
 
 
@@ -364,9 +411,22 @@ def run_training(settings: TrainingSettings) -> dict[str, Any]:
         print("No compatible latest CNN checkpoint found; starting from random weights.")
 
     for epoch in range(progress.cumulative_epochs + 1, settings.max_epochs + 1):
-        train_metrics = train_one_epoch(model, data.train_loader, loss_function, optimizer, device)
+        train_metrics = train_one_epoch(
+            model,
+            data.train_loader,
+            loss_function,
+            optimizer,
+            device,
+            epoch=epoch,
+            progress_interval=settings.progress_interval_batches,
+        )
         validation_metrics = evaluate_model(
-            model, data.validation_loader, loss_function, device
+            model,
+            data.validation_loader,
+            loss_function,
+            device,
+            phase=f"Epoch {epoch} validation",
+            progress_interval=settings.progress_interval_batches,
         )
         previous_best_accuracy = progress.best_validation_accuracy
         previous_best_loss = progress.best_validation_loss
@@ -416,7 +476,14 @@ def run_training(settings: TrainingSettings) -> dict[str, Any]:
         raise RuntimeError("Training finished without producing a best CNN checkpoint.")
     best_checkpoint = torch.load(BEST_CNN_CHECKPOINT, map_location=device, weights_only=True)
     model.load_state_dict(best_checkpoint["model_state_dict"], strict=True)
-    test_metrics = evaluate_model(model, data.test_loader, loss_function, device)
+    test_metrics = evaluate_model(
+        model,
+        data.test_loader,
+        loss_function,
+        device,
+        phase="Final test",
+        progress_interval=settings.progress_interval_batches,
+    )
     final_metadata = build_training_metadata(
         settings, data, spec, progress, test_accuracy=test_metrics.accuracy
     )
