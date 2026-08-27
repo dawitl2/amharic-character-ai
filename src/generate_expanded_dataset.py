@@ -1,130 +1,136 @@
-import random
-import os
-import sys
+"""Generate a balanced, reproducible synthetic Ethiopic dataset."""
+
+from __future__ import annotations
+
+import hashlib
 import json
-from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
-from pathlib import Path
-import numpy as np
+import random
+import sys
 from collections import defaultdict
+from pathlib import Path
 
-sys.stdout.reconfigure(encoding='utf-8')
+import numpy as np
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
 
-def load_characters():
-    with open("src/characters.json", "r", encoding="utf-8") as f:
-        return json.load(f)
 
-characters = load_characters()
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+CHARACTERS_PATH = Path(__file__).with_name("characters.json")
+DATA_DIR = PROJECT_ROOT / "data"
+FONT_PATHS = (
+    Path(r"C:\Windows\Fonts\AbyssinicaSIL-Regular.ttf"),
+    Path(r"C:\Windows\Fonts\nyala.ttf"),
+    Path(r"C:\Windows\Fonts\ebrima.ttf"),
+    Path(r"C:\Windows\Fonts\ebrimabd.ttf"),
+)
+TARGET_IMAGES_PER_CLASS = 1200
+GENERATION_SEED = 42
 
-font_paths = [
-    r"C:\Windows\Fonts\AbyssinicaSIL-Regular.ttf",
-    r"C:\Windows\Fonts\nyala.ttf",
-    r"C:\Windows\Fonts\ebrima.ttf",
-    r"C:\Windows\Fonts\ebrimabd.ttf"
-]
 
-target_images_per_class = 1200
+def load_characters(path: Path = CHARACTERS_PATH) -> list[str]:
+    with Path(path).open("r", encoding="utf-8") as handle:
+        return json.load(handle)
 
-print(f"Balancing dataset: ensuring exactly {target_images_per_class} images per class for {len(characters)} classes...")
 
-def add_scanning_artifacts(draw, width, height):
-    if random.random() < 0.2:
-        for _ in range(random.randint(1, 3)):
-            y = random.randint(0, height - 1)
-            draw.line([(0, y), (width, y)], fill=random.randint(180, 230), width=1)
-            
-    if random.random() < 0.2:
-        for _ in range(random.randint(1, 3)):
-            x = random.randint(0, width - 1)
-            draw.line([(x, 0), (x, height)], fill=random.randint(180, 230), width=1)
-
-stats = defaultdict(int)
-
-for character in characters:
-    output_folder = Path("data") / character
-    output_folder.mkdir(parents=True, exist_ok=True)
-    
-    existing = list(output_folder.glob("*.png"))
-    current_count = len(existing)
-    
-    # Balance logic
-    if current_count > target_images_per_class:
-        # Delete excess to maintain balance
-        excess = current_count - target_images_per_class
-        for file_to_delete in existing[:excess]:
-            file_to_delete.unlink()
-        current_count = target_images_per_class
-        existing = list(output_folder.glob("*.png"))
-        
-    start_idx = len(existing) + 1
-    needed = target_images_per_class - current_count
-    
-    if needed > 0:
-        for i in range(start_idx, start_idx + needed):
-            image_size = random.choice([64, 128])
-            font_path = random.choice(font_paths)
-            if image_size == 64:
-                font_size = random.randint(24, 56)
-                shift_range = 8
-            else:
-                font_size = random.randint(48, 100)
-                shift_range = 14
-                
-            bg_color = random.randint(220, 255)
-            image = Image.new("L", (image_size, image_size), color=bg_color)
+def validate_fonts(characters: list[str], font_paths: tuple[Path, ...]) -> None:
+    """Reject missing fonts, blank glyphs, and identical fallback/tofu renderings."""
+    for font_path in font_paths:
+        if not font_path.is_file():
+            raise FileNotFoundError(f"Required Ethiopic font not found: {font_path}")
+        font = ImageFont.truetype(str(font_path), 64)
+        signatures: dict[str, str] = {}
+        for character in characters:
+            image = Image.new("L", (96, 96), 255)
             draw = ImageDraw.Draw(image)
-            
-            try:
-                font = ImageFont.truetype(font_path, font_size)
-            except IOError:
-                font = ImageFont.load_default()
+            draw.text((8, 8), character, font=font, fill=0)
+            if image.getextrema() == (255, 255):
+                raise ValueError(f"{font_path.name} rendered U+{ord(character):04X} blank.")
+            signature = hashlib.sha256(image.tobytes()).hexdigest()
+            previous = signatures.get(signature)
+            if previous is not None:
+                raise ValueError(
+                    f"{font_path.name} rendered {previous} and {character} identically; "
+                    "this may be a missing-glyph fallback."
+                )
+            signatures[signature] = character
 
+
+def add_scanning_artifacts(
+    draw: ImageDraw.ImageDraw,
+    width: int,
+    height: int,
+    rng: random.Random,
+) -> None:
+    if rng.random() < 0.2:
+        for _ in range(rng.randint(1, 3)):
+            y = rng.randint(0, height - 1)
+            draw.line([(0, y), (width, y)], fill=rng.randint(180, 230), width=1)
+    if rng.random() < 0.2:
+        for _ in range(rng.randint(1, 3)):
+            x = rng.randint(0, width - 1)
+            draw.line([(x, 0), (x, height)], fill=rng.randint(180, 230), width=1)
+
+
+def generate_dataset() -> None:
+    characters = load_characters()
+    validate_fonts(characters, FONT_PATHS)
+    rng = random.Random(GENERATION_SEED)
+    np_rng = np.random.default_rng(GENERATION_SEED)
+    stats = defaultdict(int)
+    print(
+        f"Ensuring at least {TARGET_IMAGES_PER_CLASS} images per class for "
+        f"{len(characters)} classes (seed={GENERATION_SEED})..."
+    )
+
+    for character in characters:
+        output_folder = DATA_DIR / character
+        output_folder.mkdir(parents=True, exist_ok=True)
+        existing = sorted(output_folder.glob("*.png"))
+        current_count = len(existing)
+        if current_count > TARGET_IMAGES_PER_CLASS:
+            raise RuntimeError(
+                f"{output_folder} has {current_count} images, above the target of "
+                f"{TARGET_IMAGES_PER_CLASS}. No files were deleted."
+            )
+
+        needed = TARGET_IMAGES_PER_CLASS - current_count
+        for index in range(current_count + 1, current_count + needed + 1):
+            image_size = rng.choice((64, 128))
+            font_path = rng.choice(FONT_PATHS)
+            font_size = rng.randint(24, 56) if image_size == 64 else rng.randint(48, 100)
+            shift_range = 8 if image_size == 64 else 14
+            background = rng.randint(220, 255)
+            image = Image.new("L", (image_size, image_size), color=background)
+            draw = ImageDraw.Draw(image)
+            font = ImageFont.truetype(str(font_path), font_size)
             bbox = draw.textbbox((0, 0), character, font=font)
-            text_w = bbox[2] - bbox[0]
-            text_h = bbox[3] - bbox[1]
-            
-            x = (image_size - text_w) // 2 - bbox[0]
-            y = (image_size - text_h) // 2 - bbox[1]
-            
-            x += random.randint(-shift_range, shift_range)
-            y += random.randint(-shift_range, shift_range)
-            
-            text_color = random.randint(0, 80)
-            draw.text((x, y), character, font=font, fill=text_color)
-            
-            angle = random.uniform(-15.0, 15.0)
-            image = image.rotate(angle, fillcolor=bg_color)
-            
-            draw_after_rot = ImageDraw.Draw(image)
-            add_scanning_artifacts(draw_after_rot, image_size, image_size)
-            
-            if random.random() < 0.5:
-                enhancer = ImageEnhance.Contrast(image)
-                image = enhancer.enhance(random.uniform(0.5, 1.5))
-            if random.random() < 0.5:
-                enhancer = ImageEnhance.Brightness(image)
-                image = enhancer.enhance(random.uniform(0.5, 1.5))
-                
-            if random.random() < 0.3:
-                image = image.filter(ImageFilter.GaussianBlur(radius=random.uniform(0.5, 1.5)))
-                
-            if random.random() < 0.2:
-                img_arr = np.array(image, dtype=np.float32)
-                noise = np.random.normal(0, random.uniform(5, 15), img_arr.shape)
-                img_arr = np.clip(img_arr + noise, 0, 255).astype(np.uint8)
-                image = Image.fromarray(img_arr)
-                
-            filename = output_folder / f"synthetic_exp_{i:04}.png"
-            image.save(filename)
-            
-    stats[character] = target_images_per_class
-    print(f"Verified {target_images_per_class} images for class {character}")
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+            x = (image_size - text_width) // 2 - bbox[0] + rng.randint(-shift_range, shift_range)
+            y = (image_size - text_height) // 2 - bbox[1] + rng.randint(-shift_range, shift_range)
+            draw.text((x, y), character, font=font, fill=rng.randint(0, 80))
+            image = image.rotate(rng.uniform(-15.0, 15.0), fillcolor=background)
+            add_scanning_artifacts(ImageDraw.Draw(image), image_size, image_size, rng)
+            if rng.random() < 0.5:
+                image = ImageEnhance.Contrast(image).enhance(rng.uniform(0.5, 1.5))
+            if rng.random() < 0.5:
+                image = ImageEnhance.Brightness(image).enhance(rng.uniform(0.5, 1.5))
+            if rng.random() < 0.3:
+                image = image.filter(ImageFilter.GaussianBlur(radius=rng.uniform(0.5, 1.5)))
+            if rng.random() < 0.2:
+                pixels = np.asarray(image, dtype=np.float32)
+                noise = np_rng.normal(0, rng.uniform(5, 15), pixels.shape)
+                image = Image.fromarray(np.clip(pixels + noise, 0, 255).astype(np.uint8))
 
-print("\n--- Dataset Summary ---")
-print(f"Total classes: {len(characters)}")
-print(f"Total images: {len(characters) * target_images_per_class}")
-for i, char in enumerate(characters[:10]):
-    print(f"{char}: {stats[char]}")
-if len(characters) > 10:
-    print("...")
+            font_tag = font_path.stem.lower().replace("-regular", "")
+            image.save(output_folder / f"synthetic_exp_{index:04d}_{font_tag}.png")
 
-print("Expanded dataset generation complete!")
+        stats[character] = current_count + needed
+        print(f"Verified {stats[character]} images for class {character}")
+
+    print(f"Dataset complete: {len(characters)} classes, {sum(stats.values())} images")
+
+
+if __name__ == "__main__":
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    generate_dataset()
