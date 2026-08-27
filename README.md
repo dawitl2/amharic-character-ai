@@ -1,6 +1,6 @@
 # Amharic / Ethiopic Character Recognition
 
-A learning-oriented PyTorch project for classifying ten Ethiopic characters with one active convolutional neural network and a small desktop research interface.
+A learning-oriented PyTorch project for classifying the 290 Ethiopic characters in `src/characters.json` with one active convolutional neural network and a small desktop research interface.
 
 ## Active pipeline
 
@@ -34,6 +34,14 @@ Run from the repository root:
 ```powershell
 .venv\Scripts\python.exe src\train.py
 ```
+
+When the dataset or character mapping has been replaced, start a clean run with:
+
+```powershell
+.venv\Scripts\python.exe src\train.py --fresh
+```
+
+`--fresh` validates the dataset first, then moves old CNN checkpoints, metrics, configuration, and split data into a timestamped `models/archive/` directory. It does not delete them. Without `--fresh`, training resumes only from a strictly compatible latest checkpoint.
 
 Documented defaults:
 
@@ -71,6 +79,14 @@ The bundled checkpoint was migrated from the historical per-image random split a
 
 ## Diagnostics
 
+Before a long training run, perform the read-only full dataset preflight:
+
+```powershell
+.venv\Scripts\python.exe src\preflight_training.py --all-images
+```
+
+This decodes every image, rejects blank images and identical content with conflicting labels, validates the canonical 290-class mapping, and checks the CNN output shape. It does not train or write model artifacts.
+
 Run all three labeled splits separately:
 
 ```powershell
@@ -98,7 +114,7 @@ Training, validation, test, and external results are never combined. External ac
 .venv\Scripts\python.exe src\gui.py
 ```
 
-Dataset images use the same shared resize/tensor path used by training. External images additionally receive whitespace removal and an aspect-preserving centered fit before that same tensor conversion. The GUI only shows CORRECT/WRONG when the image comes from the labeled dataset or the user supplies a label.
+Dataset images use the same shared resize/tensor path used by training. External images additionally receive whitespace removal and an aspect-preserving centered fit before that same tensor conversion. The GUI only shows CORRECT/WRONG when the image comes from the labeled dataset.
 
 ## Legacy linear experiments
 
