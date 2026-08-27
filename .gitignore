@@ -1,3 +1,6 @@
 .venv/
 data/
 __pycache__/
+models/archive/
+models/latest_cnn_checkpoint.pth
+models/cnn_training_metrics.csv
