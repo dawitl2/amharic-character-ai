@@ -95,6 +95,7 @@ def create_training_data(
     validate_training_dataset(dataset)
     manifest = load_or_create_split_manifest(dataset, DATA_DIR, SPLIT_MANIFEST_PATH)
     indices = split_indices(dataset, DATA_DIR, manifest)
+    validate_split_coverage(dataset, indices)
     generator = torch.Generator().manual_seed(settings.seed)
 
     def loader(split_name: str, *, shuffle: bool) -> DataLoader:
@@ -113,6 +114,22 @@ def create_training_data(
         validation_loader=loader("validation", shuffle=False),
         test_loader=loader("test", shuffle=False),
     )
+
+
+def validate_split_coverage(dataset, indices: dict[str, list[int]]) -> None:
+    """Require every class in every partition so all reported metrics are meaningful."""
+    expected = set(range(len(dataset.classes)))
+    for split_name in ("train", "validation", "test"):
+        split_indices_for_name = indices.get(split_name, [])
+        represented = {
+            int(dataset.samples[index][1]) for index in split_indices_for_name
+        }
+        missing = expected - represented
+        if missing:
+            raise ValueError(
+                f"The {split_name} split is missing {len(missing)} dataset classes. "
+                "Add independent images or provenance groups for every class."
+            )
 
 
 def train_one_epoch(model, loader, loss_function, optimizer, device: torch.device) -> EpochMetrics:

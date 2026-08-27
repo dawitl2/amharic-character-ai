@@ -17,6 +17,7 @@ from training import (  # noqa: E402
     TrainingSettings,
     checkpoint_payload,
     resume_training_state,
+    validate_split_coverage,
 )
 from train import parse_args  # noqa: E402
 
@@ -28,6 +29,27 @@ class TrainingTests(unittest.TestCase):
     def test_fresh_flag_is_explicit_and_disabled_by_default(self):
         self.assertFalse(parse_args([]).fresh)
         self.assertTrue(parse_args(["--fresh"]).fresh)
+
+    def test_split_coverage_requires_every_class_in_every_partition(self):
+        dataset = SimpleNamespace(
+            classes=["a", "b"],
+            samples=[("a1", 0), ("b1", 1), ("a2", 0), ("b2", 1)],
+        )
+        with self.assertRaisesRegex(ValueError, "validation split is missing"):
+            validate_split_coverage(
+                dataset,
+                {"train": [0, 1], "validation": [2], "test": [2, 3]},
+            )
+
+    def test_split_coverage_accepts_complete_partitions(self):
+        dataset = SimpleNamespace(
+            classes=["a", "b"],
+            samples=[("a1", 0), ("b1", 1)] * 3,
+        )
+        validate_split_coverage(
+            dataset,
+            {"train": [0, 1], "validation": [2, 3], "test": [4, 5]},
+        )
 
     def test_resume_restores_epoch_optimizer_and_scheduler(self):
         settings = TrainingSettings()
