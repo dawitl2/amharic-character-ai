@@ -5,6 +5,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
+CHARACTERS_MANIFEST_PATH = PROJECT_ROOT / "src" / "characters.json"
 MODEL_DIR = PROJECT_ROOT / "models"
 CNN_CONFIG_PATH = MODEL_DIR / "cnn_model_config.json"
 BEST_CNN_CHECKPOINT = MODEL_DIR / "best_cnn_model.pth"
