@@ -22,6 +22,7 @@ from checkpoints import (
 )
 from cnn_model import ARCHITECTURE_NAME, CharacterCNN
 from data_splits import load_or_create_split_manifest, split_indices
+from dataset_contract import validate_training_dataset
 from preprocessing import CharacterTransform, PreprocessingSpec
 from project_paths import (
     BEST_CNN_CHECKPOINT,
@@ -84,8 +85,14 @@ def set_deterministic_seed(seed: int) -> None:
     torch.use_deterministic_algorithms(True, warn_only=True)
 
 
-def create_training_data(settings: TrainingSettings, spec: PreprocessingSpec) -> TrainingData:
-    dataset = ImageFolder(DATA_DIR, transform=CharacterTransform(spec))
+def create_training_data(
+    settings: TrainingSettings,
+    spec: PreprocessingSpec,
+    dataset: ImageFolder | None = None,
+) -> TrainingData:
+    if dataset is None:
+        dataset = ImageFolder(DATA_DIR, transform=CharacterTransform(spec))
+    validate_training_dataset(dataset)
     manifest = load_or_create_split_manifest(dataset, DATA_DIR, SPLIT_MANIFEST_PATH)
     indices = split_indices(dataset, DATA_DIR, manifest)
     generator = torch.Generator().manual_seed(settings.seed)
@@ -281,13 +288,15 @@ def _append_metrics(epoch: int, train: EpochMetrics, validation: EpochMetrics, l
 
 def run_training(settings: TrainingSettings) -> dict[str, Any]:
     set_deterministic_seed(settings.seed)
+    spec = PreprocessingSpec()
+    dataset = ImageFolder(DATA_DIR, transform=CharacterTransform(spec))
+    dataset_report = validate_training_dataset(dataset)
     archive_path = None
     if settings.fresh_start:
         archive_path = archive_active_training_artifacts()
         if archive_path is not None:
             print(f"Archived previous training artifacts: {archive_path}")
-    spec = PreprocessingSpec()
-    data = create_training_data(settings, spec)
+    data = create_training_data(settings, spec, dataset)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = CharacterCNN(num_classes=len(data.dataset.classes)).to(device)
     loss_function = torch.nn.CrossEntropyLoss()
@@ -311,6 +320,10 @@ def run_training(settings: TrainingSettings) -> dict[str, Any]:
     )
 
     print(f"Architecture: {ARCHITECTURE_NAME}")
+    print(
+        f"Dataset: {dataset_report.class_count} classes, {dataset_report.image_count} images, "
+        f"{dataset_report.minimum_images_per_class}-{dataset_report.maximum_images_per_class} per class"
+    )
     print(f"Device: {device}")
     print(f"Maximum cumulative epochs: {settings.max_epochs}")
     print(f"Optimizer: {settings.optimizer_name}")
