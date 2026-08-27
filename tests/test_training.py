@@ -18,11 +18,16 @@ from training import (  # noqa: E402
     checkpoint_payload,
     resume_training_state,
 )
+from train import parse_args  # noqa: E402
 
 
 class TrainingTests(unittest.TestCase):
     def test_default_maximum_is_200_cumulative_epochs(self):
         self.assertEqual(TrainingSettings().max_epochs, 200)
+
+    def test_fresh_flag_is_explicit_and_disabled_by_default(self):
+        self.assertFalse(parse_args([]).fresh)
+        self.assertTrue(parse_args(["--fresh"]).fresh)
 
     def test_resume_restores_epoch_optimizer_and_scheduler(self):
         settings = TrainingSettings()

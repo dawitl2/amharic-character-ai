@@ -31,6 +31,7 @@ from project_paths import (
     METRICS_CSV_PATH,
     SPLIT_MANIFEST_PATH,
 )
+from training_artifacts import archive_active_training_artifacts
 
 
 @dataclass(frozen=True)
@@ -45,6 +46,7 @@ class TrainingSettings:
     early_stopping_patience: int = 15
     early_stopping_min_delta: float = 0.05
     seed: int = 42
+    fresh_start: bool = False
 
 
 @dataclass(frozen=True)
@@ -279,6 +281,11 @@ def _append_metrics(epoch: int, train: EpochMetrics, validation: EpochMetrics, l
 
 def run_training(settings: TrainingSettings) -> dict[str, Any]:
     set_deterministic_seed(settings.seed)
+    archive_path = None
+    if settings.fresh_start:
+        archive_path = archive_active_training_artifacts()
+        if archive_path is not None:
+            print(f"Archived previous training artifacts: {archive_path}")
     spec = PreprocessingSpec()
     data = create_training_data(settings, spec)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -321,6 +328,8 @@ def run_training(settings: TrainingSettings) -> dict[str, Any]:
     print(f"Split: {data.manifest['strategy']} {data.manifest['counts']}")
     if progress.cumulative_epochs:
         print(f"Resumed from cumulative epoch {progress.cumulative_epochs}: {LATEST_CNN_CHECKPOINT}")
+    elif settings.fresh_start:
+        print("Fresh training requested; starting from random weights.")
     else:
         print("No compatible latest CNN checkpoint found; starting from random weights.")
 
