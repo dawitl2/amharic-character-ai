@@ -8,6 +8,22 @@ The goal is not to rush through these steps.
 
 Each stage should be understood before moving to the next one.
 
+## Current milestone — August 2026
+
+```text
+290-class printed CharacterCNN
+→ best validation accuracy 93.9751% at epoch 27
+→ shared external-image preprocessing
+→ OpenCV word/line segmentation
+→ batched CNN character recognition
+→ traceable word and sentence reconstruction
+→ optional Amharic-to-English translation
+→ professional desktop application and real training graphs
+```
+
+The interrupted training run is resumable from epoch 27. The full independent
+test accuracy remains pending because the run did not reach final evaluation.
+
 ---
 
 # PHASE 0 — Project Foundation
@@ -598,7 +614,7 @@ For every expansion:
 
 ---
 
-# PHASE 28 /not to be implimented now/ — Handwritten Character Dataset
+# PHASE 28 — Handwritten Character Dataset (future; not in this stage)
 
 * [ ] Design data collection format.
 * [ ] Collect handwriting from multiple people.
@@ -615,38 +631,50 @@ For every expansion:
 
 ---
 
-# PHASE 29 — Character Segmentation
+# PHASE 29 — Printed Character Segmentation (first version complete)
 
-The current model assumes:
+The classifier itself assumes:
 
 ```text
 one image = one character
 ```
 
-Future OCR must find characters inside larger images.
+The new OpenCV layer now finds characters inside larger printed images.
 
-* [ ] Detect text regions.
-* [ ] Identify character boundaries.
-* [ ] Segment characters.
-* [ ] Feed segments into classifier.
-* [ ] Handle touching characters.
-* [ ] Handle irregular spacing.
-* [ ] Handle different font sizes.
-
----
-
-# PHASE 30 /not to be implimented now/ — Word Recognition
-
-* [ ] Process multiple characters.
-* [ ] Reconstruct character sequences.
-* [ ] Preserve reading order.
-* [ ] Recognize words.
-* [ ] Evaluate word accuracy.
-* [ ] Handle segmentation errors.
+* [x] Convert images to grayscale.
+* [x] Detect foreground polarity.
+* [x] Apply Otsu thresholding and conditional adaptive thresholding.
+* [x] Remove small noise with morphology.
+* [x] Detect connected components.
+* [x] Group plausible disconnected pieces by overlap, distance, and size.
+* [x] Split unusually wide components using vertical projection valleys.
+* [x] Identify character boundaries and reading order.
+* [x] Reuse the shared CNN preprocessing function for every crop.
+* [x] Feed batches of segmented crops into the active classifier.
+* [x] Handle different clean printed fonts, sizes, whitespace, and shifts in tests.
+* [x] Draw inspectable word and character bounding boxes.
+* [ ] Improve touching-character separation using real observed failures.
+* [ ] Add skew and perspective correction for camera images.
 
 ---
 
-# PHASE 31 /not to be implimented now/ — Full-Line Recognition
+# PHASE 30 — Printed Word Recognition (first version complete)
+
+* [x] Process multiple detected characters.
+* [x] Run the active 290-class CNN on every crop.
+* [x] Reconstruct character sequences.
+* [x] Preserve left-to-right Ethiopic reading order.
+* [x] Recognize clean generated printed words.
+* [x] Store bounding box, prediction, confidence, alternatives, and crop.
+* [x] Flag low-confidence characters without discarding the raw prediction.
+* [x] Expose segmentation errors separately from classifier errors.
+* [x] Verify `ሰላም` end to end with the active checkpoint.
+* [ ] Create a larger independent real-word benchmark and report word accuracy.
+* [ ] Improve recovery for touching or broken printed characters.
+
+---
+
+# PHASE 31 — Printed Line Recognition (first version complete)
 
 Instead of:
 
@@ -654,28 +682,41 @@ Instead of:
 single image → single character
 ```
 
-progress toward:
+The current first version uses:
 
 ```text
-line image
+printed line image
 ↓
-model
+relative line, gap, word, and character segmentation
 ↓
-text sequence
+active character CNN
+↓
+reconstructed text sequence
 ```
 
-Possible future architectures:
+* [x] Group characters into lines using relative vertical overlap.
+* [x] Infer word boundaries from relative component width and clustered gaps.
+* [x] Preserve top-to-bottom line and left-to-right character order.
+* [x] Restore spaces and line breaks.
+* [x] Display per-character crops, confidence, and uncertainty.
+* [x] Keep optional translation separate from OCR.
+* [x] Test a generated two-word printed line end to end.
+* [ ] Benchmark larger real printed lines and punctuation.
+* [ ] Add full-page region and layout analysis.
+
+Possible later sequence architectures:
 
 * CNN + recurrent network
 * CTC-based recognition
 * transformer-based recognition
 * vision transformer approaches
 
-These should only be attempted after the fundamentals are understood.
+These remain future experiments; the current implementation intentionally
+reuses the trained character CNN.
 
 ---
 
-# PHASE 32 /not to be implimented now/ — Amharic Language Model Integration
+# PHASE 32 — Amharic Language Model Integration (future; not translation)
 
 Vision sometimes makes mistakes between visually similar characters.
 
@@ -704,7 +745,7 @@ Future tasks:
 
 ---
 
-# PHASE 33 /not to be implimented now/ — Full Amharic OCR
+# PHASE 33 — Full-Page Amharic OCR (future)
 
 Target system:
 
@@ -736,7 +777,7 @@ Possible inputs:
 
 ---
 
-# PHASE 34 /not to be implimented now/ — Production API
+# PHASE 34 — Production API (future)
 
 * [ ] Build inference service.
 * [ ] Create API endpoint.
@@ -760,27 +801,34 @@ FastAPI
 
 ---
 
-# PHASE 35 — User Interface
+# PHASE 35 — Desktop User Interface (complete for current OCR stage)
 
-Possible application:
+Implemented application:
 
 ```text
-Upload image
+Character, word, or line image
 ↓
-Preview
+Original/binary/segmentation preview
 ↓
-Recognize
+Local CNN recognition
 ↓
-Display Ethiopic text
+Traceable Ethiopic result and confidence
+↓
+Optional English translation
 ```
 
-Potential platforms:
-
-* web
-* desktop
-* mobile
-* browser extension
-* document-processing application
+* [x] Maximized professional light desktop layout.
+* [x] Character dataset browser and external upload.
+* [x] Correct answer, confidence, top predictions, and correct/wrong state.
+* [x] Word OCR and Sentence OCR navigation.
+* [x] Original, binary, and bounding-box previews.
+* [x] Low-confidence selector and raw per-crop diagnostics.
+* [x] Held-out evaluation page.
+* [x] Checkpoint-derived model information page.
+* [x] Educational pipeline visualization page.
+* [x] Real accuracy, loss, and learning-rate graph page.
+* [x] Optional translation and copy controls with failure isolation.
+* [ ] Consider web, mobile, or document-processing interfaces later.
 
 ---
 
@@ -805,6 +853,22 @@ Skills from this project could later support:
 * [ ] handwriting assistance
 * [ ] accessibility systems
 * [ ] multimodal Ethiopian-language AI
+
+---
+
+# PHASE 37 — Optional Translation Integration (complete for current stage)
+
+Translation is downstream from OCR. It does not replace or assist visual
+recognition.
+
+* [x] Define a provider interface separate from OCR logic.
+* [x] Use a documented keyless Amharic-to-English endpoint for the normal demo.
+* [x] Send reconstructed text only after an explicit Translate action.
+* [x] Keep images, crops, logits, and model data local.
+* [x] Use timeouts and UTF-8 byte-aware request chunking.
+* [x] Preserve the Amharic OCR result when translation fails.
+* [x] Keep endpoint and optional contact email configurable through environment variables.
+* [ ] Re-evaluate provider limits and terms before public/high-volume deployment.
 
 ---
 
@@ -835,7 +899,7 @@ how language models can improve visual recognition
 
 The project should grow only as fast as these concepts are genuinely understood.
 
-## Phase 28: Full Printed Character Expansion
+## Completed milestone: Full Printed Character Expansion
 **Objective**: Expand the CNN to recognize the full canonical Amharic printed character inventory without losing previously learned capabilities.
 
 **Changes made**:
