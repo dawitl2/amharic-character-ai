@@ -32,6 +32,8 @@ class PreprocessingTests(unittest.TestCase):
         self.assertAlmostEqual(width / height, 30 / 50, delta=0.08)
         self.assertAlmostEqual(float(columns.float().mean()), 31.5, delta=1.0)
         self.assertAlmostEqual(float(rows.float().mean()), 31.5, delta=1.0)
+        self.assertLessEqual(width, round(64 * 0.55) + 1)
+        self.assertLessEqual(height, round(64 * 0.55) + 1)
 
     def test_zero_normalization_scale_is_rejected(self):
         invalid_spec = PreprocessingSpec(normalization_std=(0.0,))

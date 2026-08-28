@@ -41,9 +41,9 @@ def fit_character_to_canvas(
     image: Image.Image,
     *,
     canvas_size: tuple[int, int],
-    foreground_fraction: float = 0.82,
+    foreground_fraction: float = 0.55,
 ) -> Image.Image:
-    """Crop surrounding blank space and center content without stretching it."""
+    """Crop and center content at the scale learned from training canvases."""
     grayscale = image.convert("L")
     pixels = np.asarray(grayscale, dtype=np.uint8)
     border = np.concatenate((pixels[0], pixels[-1], pixels[:, 0], pixels[:, -1]))
