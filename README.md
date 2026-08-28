@@ -203,46 +203,54 @@ The maximized, light-theme desktop UI includes:
 - visual character/word/sentence pipeline explanations;
 - real training accuracy, loss, and learning-rate graphs.
 
-### Screenshots
+## Demo screenshots
 
-All screenshots below were captured from the implemented application. The documentation utility renders printed samples, runs the real active CNN and segmentation pipeline, runs a real small held-out evaluation, and captures the resulting windows.
+All screenshots below were captured from the implemented application. The documentation utility renders printed samples, runs the real active CNN and segmentation pipeline, runs a real small held-out evaluation, and captures the resulting windows. They are displayed directly rather than hidden inside a collapsed section.
 
-#### Character prediction
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <strong>Character prediction</strong><br><br>
+      <img src="./docs/screenshots/character-prediction.png" alt="Character prediction with the active CharacterCNN" width="100%">
+    </td>
+    <td width="50%" valign="top">
+      <strong>Word OCR and segmentation</strong><br><br>
+      <img src="./docs/screenshots/word-ocr.png" alt="Word OCR with segmentation and character diagnostics" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <strong>Sentence OCR</strong><br><br>
+      <img src="./docs/screenshots/sentence-ocr.png" alt="Sentence OCR with word and character regions" width="100%">
+    </td>
+    <td width="50%" valign="top">
+      <strong>Held-out evaluation</strong><br><br>
+      <img src="./docs/screenshots/evaluation.png" alt="Held-out model evaluation" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <strong>Model information</strong><br><br>
+      <img src="./docs/screenshots/model-information.png" alt="Active checkpoint model information" width="100%">
+    </td>
+    <td width="50%" valign="top">
+      <strong>OCR pipeline</strong><br><br>
+      <img src="./docs/screenshots/ocr-pipeline.png" alt="Educational OCR pipeline page" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <strong>Segmentation overlay</strong><br><br>
+      <img src="./docs/screenshots/segmentation-overlay.png" alt="Blue word and green character segmentation boxes" width="100%">
+    </td>
+    <td width="50%" valign="top">
+      <strong>Saved training history</strong><br><br>
+      <img src="./docs/screenshots/training-graphs.png" alt="Real saved CNN training history" width="100%">
+    </td>
+  </tr>
+</table>
 
-![Character prediction](docs/screenshots/character-prediction.png)
-
-#### Word OCR and segmentation diagnostics
-
-![Word OCR](docs/screenshots/word-ocr.png)
-
-#### Sentence OCR
-
-![Sentence OCR](docs/screenshots/sentence-ocr.png)
-
-<details>
-<summary>More application screens</summary>
-
-#### Segmentation overlay
-
-![Segmentation overlay](docs/screenshots/segmentation-overlay.png)
-
-#### Held-out evaluation
-
-![Held-out evaluation](docs/screenshots/evaluation.png)
-
-#### Model information
-
-![Model information](docs/screenshots/model-information.png)
-
-#### OCR pipeline
-
-![OCR pipeline](docs/screenshots/ocr-pipeline.png)
-
-#### Saved training history
-
-![Training graphs](docs/screenshots/training-graphs.png)
-
-</details>
+> If GitHub is still processing a newly pushed image, open the corresponding file in `docs/screenshots/` and refresh the README after a few seconds.
 
 ## Installation
 
