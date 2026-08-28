@@ -410,15 +410,14 @@ Completed work and future research are intentionally separated. Possible next st
 - speech recognition and text-to-speech;
 - multimodal Ethiopian-language AI.
 
-Project Motivation & Future Roadmap
+## Project motivation and future roadmap
 
 While there are already highly advanced AI models capable of processing Amharic and Ethiopic characters, the primary motivation behind this repository is foundational learning and hands-on algorithmic development. Building a custom supervised learning model from the ground up serves as a practical environment to deeply understand the mathematics and architecture behind Convolutional Neural Networks (CNNs), data preprocessing, and the complete deep learning pipeline.
 
 Currently, the model is optimized strictly for digital text. However, the architecture is designed to scale, with several major milestones planned for future releases:
 
-Handwritten Text Recognition (Under Development): We are actively collecting and preprocessing custom datasets to train the model on handwritten Fidel. This unreleased version will also introduce advanced word and sentence segmentation specifically tailored for the structural nuances of Amharic handwriting.
+- **Handwritten Text Recognition — under development:** We are actively collecting and preprocessing custom datasets to train the model on handwritten Fidel. This unreleased version will also introduce advanced word and sentence segmentation specifically tailored for the structural nuances of Amharic handwriting. Printed samples will remain in the training mixture so the existing printed capability is preserved.
 
-Audio Transcription Integration: Expanding the ecosystem to support bidirectional speech-to-text (STT) and text-to-speech (TTS) capabilities.
+- **Audio Transcription Integration:** Expand the ecosystem to support bidirectional speech-to-text (STT) and text-to-speech (TTS) capabilities.
 
-Advanced Amharic AI Agent: Ultimately leveraging these foundational vision and text models to build a comprehensive, interactive AI agent capable of complex Amharic natural language processing and task automation.
-
+- **Advanced Amharic AI Agent:** Ultimately leverage these foundational vision and text models to build a comprehensive, interactive AI agent capable of complex Amharic natural-language processing and task automation.
