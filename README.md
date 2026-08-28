@@ -1,6 +1,6 @@
-# Ethiopic OCR
+# Ethiopic: A Supervised Learning Pipeline
 
-An educational, end-to-end Amharic/Ethiopic optical-character-recognition project built with Python, PyTorch, OpenCV, Pillow, and CustomTkinter.
+An educational, end-to-end Amharic and Ethiopic Optical Character Recognition (OCR) ecosystem built with Python, PyTorch, OpenCV, Pillow, and CustomTkinter, specifically designed as a hands-on foundation for supervised learning, AI model training, and algorithmic development.
 
 The application recognizes a single printed character with a locally trained 290-class convolutional neural network (CNN). It can also segment a printed word or line into character crops, classify every crop with that same CNN, restore reading order, and optionally translate the reconstructed Amharic text into English.
 
@@ -373,8 +373,15 @@ Completed work and future research are intentionally separated. Possible next st
 - speech recognition and text-to-speech;
 - multimodal Ethiopian-language AI.
 
-Handwriting remains future work. When it is introduced, printed samples should remain in the training mixture rather than being replaced.
+Project Motivation & Future Roadmap
 
-## Educational principle
+While there are already highly advanced AI models capable of processing Amharic and Ethiopic characters, the primary motivation behind this repository is foundational learning and hands-on algorithmic development. Building a custom supervised learning model from the ground up serves as a practical environment to deeply understand the mathematics and architecture behind Convolutional Neural Networks (CNNs), data preprocessing, and the complete deep learning pipeline.
 
-The important outcome is not merely “I built an OCR application.” It is being able to explain how images become tensors, how labels create supervised examples, how logits and loss measure mistakes, how gradients and optimizers change weights, how validation measures generalization, how CNNs learn visual features, and how character intelligence becomes traceable word and sentence OCR.
+Currently, the model is optimized strictly for digital text. However, the architecture is designed to scale, with several major milestones planned for future releases:
+
+Handwritten Text Recognition (Under Development): We are actively collecting and preprocessing custom datasets to train the model on handwritten Fidel. This unreleased version will also introduce advanced word and sentence segmentation specifically tailored for the structural nuances of Amharic handwriting.
+
+Audio Transcription Integration: Expanding the ecosystem to support bidirectional speech-to-text (STT) and text-to-speech (TTS) capabilities.
+
+Advanced Amharic AI Agent: Ultimately leveraging these foundational vision and text models to build a comprehensive, interactive AI agent capable of complex Amharic natural language processing and task automation.
+
