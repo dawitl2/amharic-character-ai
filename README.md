@@ -1,147 +1,380 @@
-# Amharic / Ethiopic Character Recognition
+# Ethiopic OCR
 
-A learning-oriented PyTorch project for classifying the 290 Ethiopic characters in `src/characters.json` with one active convolutional neural network and a small desktop research interface.
+An educational, end-to-end Amharic/Ethiopic optical-character-recognition project built with Python, PyTorch, OpenCV, Pillow, and CustomTkinter.
 
-## Active pipeline
+The application recognizes a single printed character with a locally trained 290-class convolutional neural network (CNN). It can also segment a printed word or line into character crops, classify every crop with that same CNN, restore reading order, and optionally translate the reconstructed Amharic text into English.
+
+> Mature OCR and translation systems already exist. This project is educational and experimental: I am building the recognition pipeline myself to understand supervised learning, neural-network training, computer vision, CNNs, evaluation, generalization, OCR segmentation, and the engineering needed to turn trained intelligence into a usable application.
+
+The goal is not to call an existing OCR model as a black box. The goal is to understand how machine intelligence is trained.
+
+## Current status
+
+The repository now supports three explicit recognition paths:
+
+| Mode | Pipeline | Status |
+| --- | --- | --- |
+| Character | image → shared preprocessing → local CNN → Ethiopic class | Implemented |
+| Word OCR | image → OpenCV character segmentation → local CNN → word | Implemented for clean printed text |
+| Sentence OCR | line image → relative gap analysis → words/characters → local CNN → text | Implemented for clean printed lines |
+| Translation | reconstructed Amharic text → replaceable external provider → English | Optional; OCR remains usable offline |
+
+The active checkpoint and all earlier learning artifacts are preserved. Word and sentence recognition reuse the existing CNN; no word-level model has replaced it.
+
+## Why supervised learning is central
+
+Every training example contains an image and its correct class label. The CNN produces 290 logits, cross-entropy measures how wrong those scores are, backpropagation computes gradients, and the optimizer updates the weights.
+
+```mermaid
+flowchart LR
+    A[Training images] --> C[CNN]
+    B[Correct labels] --> D[CrossEntropyLoss]
+    C --> E[290 logits]
+    E --> D
+    D --> F[Backpropagation]
+    F --> G[Gradients]
+    G --> H[SGD optimizer]
+    H --> I[Updated weights]
+    I --> C
+```
+
+The project has deliberately evolved from first principles:
 
 ```text
-image
-→ shared grayscale preparation
-→ [1, 1, 64, 64] tensor
-→ CharacterCNN
-→ raw class logits
-→ softmax(logits, dim=1) for inference only
-→ character decoded with the checkpoint class_to_idx mapping
+synthetic character generation
+→ pixels
+→ tensors
+→ labels
+→ supervised learning
+→ loss and gradients
+→ optimizer
+→ linear classifier
+→ CNN
+→ 290 character classes
+→ generalized character recognition
+→ word segmentation
+→ sentence OCR
+→ optional translation
 ```
 
-The GUI, command-line prediction, automatic evaluation, and sanity diagnostics all load:
+## Learning objectives
+
+- Build and validate labeled datasets.
+- Understand image tensors, batches, and class mappings.
+- Understand neural networks, logits, probabilities, and confidence.
+- Use cross-entropy loss, backpropagation, gradients, and optimization.
+- Train a CNN and measure generalization on independent partitions.
+- Diagnose overfitting, class confusion, and preprocessing mismatch.
+- Recognize the 290-character Ethiopic inventory in `src/characters.json`.
+- Segment printed words and lines without assuming one contour equals one glyph.
+- Reconstruct words and sentences in reading order.
+- Integrate translation without outsourcing OCR intelligence.
+
+## Active model
+
+The values below come from `models/cnn_model_config.json`, the active checkpoint, and the saved epoch CSV. They are not estimated.
+
+| Property | Current value |
+| --- | ---: |
+| Architecture | `CharacterCNN` |
+| Classes | 290 |
+| Parameters | 1,090,914 |
+| Input | 64 × 64 grayscale |
+| Tensor shape | `[batch, 1, 64, 64]` |
+| Dataset images | 348,000 |
+| Training images | 243,600 |
+| Validation images | 52,200 |
+| Test images | 52,200 |
+| Epochs completed | 27 |
+| Epoch 27 training accuracy | 97.4224% |
+| Best validation accuracy | 93.9751% |
+| Best checkpoint epoch | 27 |
+| Independent full-test accuracy | Not yet recorded; training was interrupted before final evaluation |
+| Optimizer | SGD, base learning rate 0.01 |
+
+The small evaluation shown in the GUI is an on-demand diagnostic over labeled held-out samples. It is not presented as the missing full-test metric.
+
+### CNN architecture
+
+```mermaid
+flowchart LR
+    A[64×64×1 image] --> B[Conv2D<br/>1 → 16, 3×3]
+    B --> C[ReLU]
+    C --> D[MaxPool 2×2<br/>16×32×32]
+    D --> E[Conv2D<br/>16 → 32, 3×3]
+    E --> F[ReLU]
+    F --> G[MaxPool 2×2<br/>32×16×16]
+    G --> H[Flatten<br/>8,192 values]
+    H --> I[Linear<br/>8,192 → 128]
+    I --> J[ReLU]
+    J --> K[Linear<br/>128 → 290 logits]
+    K --> L[Ethiopic character]
+```
+
+Softmax is applied during inference to present probabilities. It is intentionally not applied before `CrossEntropyLoss` during training.
+
+## OCR architecture
+
+OpenCV and the CNN have separate responsibilities:
 
 ```text
-models/cnn_model_config.json
-models/best_cnn_model.pth
+OpenCV = WHERE are the words and characters?
+CNN    = WHAT character is in each crop?
 ```
 
-Loading is strict. Architecture, tensor names, input format, output count, preprocessing, and class mapping must agree. The application never falls back to random weights or the legacy linear model.
-
-## CNN architecture
-
-`CharacterCNN` contains two convolution/ReLU/max-pooling blocks followed by a 128-unit fully connected layer and one raw logit per class. The active input contract is 64 × 64 grayscale with values in `[0, 1]`; current normalization is the identity transform (mean `0`, standard deviation `1`).
-
-## Training
-
-Run from the repository root:
-
-```powershell
-.venv\Scripts\python.exe src\train.py
+```mermaid
+flowchart LR
+    A[Word or line image] --> B[Grayscale and polarity-aware thresholding]
+    B --> C[Noise removal and connected components]
+    C --> D[Group disconnected glyph pieces]
+    D --> E[Projection-based wide-component splitting]
+    E --> F[Relative line and whitespace grouping]
+    F --> G[Ordered character crops]
+    G --> H[Shared 64×64 preprocessing]
+    H --> I[Active CharacterCNN]
+    I --> J[Character predictions and confidence]
+    J --> K[Reconstructed Amharic text]
+    K -. optional text only .-> L[Translation provider]
+    L -.-> M[English text]
 ```
 
-When the dataset or character mapping has been replaced, start a clean run with:
+The segmenter uses relative image and component dimensions rather than a single hard-coded pixel gap. It groups plausible disconnected pieces by overlap, distance, baseline, and size, and it exposes blue word boxes plus green character boxes for diagnosis.
 
-```powershell
-.venv\Scripts\python.exe src\train.py --fresh
-```
+Every recognized character retains:
 
-`--fresh` validates the dataset first, then moves old CNN checkpoints, metrics, configuration, and split data into a timestamped `models/archive/` directory. It does not delete them. Without `--fresh`, training resumes only from a strictly compatible latest checkpoint.
+- bounding box;
+- extracted crop;
+- raw CNN prediction;
+- confidence;
+- ranked alternatives;
+- uncertainty state.
 
-For CPU training, two persistent background image-loading workers can reduce the PNG decoding bottleneck:
+The configurable confidence threshold affects the displayed text, not the underlying diagnostic prediction. A low-confidence crop is shown as `?`; its raw CNN result remains available.
 
-```powershell
-.venv\Scripts\python.exe src\train.py --max-epochs 200 --num-workers 2
-```
+### Shared preprocessing contract
 
-Do not repeat `--fresh` after the new split manifest has already been created unless you intentionally want to archive it and rebuild the split. Split creation and long epochs display progress while they run.
-
-Documented defaults:
-
-- maximum cumulative epochs: 200
-- optimizer: SGD
-- learning rate: 0.01
-- batch size: 64
-- data-loader workers: 0 by default; `--num-workers 2` is the conservative CPU option
-- loss: `CrossEntropyLoss` on raw logits
-- scheduler: `ReduceLROnPlateau`, factor 0.5, patience 5, minimum LR 0.00001
-- early stopping: patience 15, minimum validation-accuracy change 0.05 percentage points
-- deterministic seed: 42
-- split: 70% training, 15% validation, 15% test
-
-`--max-epochs` is a cumulative ceiling, not a request for that many additional epochs. Training can finish earlier through early stopping. Run `src/train.py --help` for explicit overrides.
-
-Training saves:
+Dataset samples, uploaded characters, and segmented OCR crops all pass through `src/preprocessing.py`.
 
 ```text
-models/best_cnn_model.pth        best validation checkpoint
-models/latest_cnn_checkpoint.pth latest resumable state
-models/cnn_model_config.json     GUI-readable model metadata
-models/cnn_training_metrics.csv  per-epoch metrics
-models/cnn_data_split.json       deterministic split membership
+image/crop
+→ grayscale
+→ trim external whitespace
+→ preserve aspect ratio
+→ fit to 55% foreground occupancy
+→ center on a 64×64 canvas
+→ tensor [1, 64, 64]
+→ identity normalization in [0, 1]
 ```
 
-The latest checkpoint includes model, optimizer, scheduler, cumulative epoch, best score, and early-stopping state.
+The 55% fit was selected with a 1,160-render sweep across all 290 classes and four installed Ethiopic fonts. This brought external printed glyph scale into line with the training distribution; it does not alter the saved weights.
 
-## Data split and validation limits
+## Desktop application
 
-The split manifest is deterministic and stratified. Exact normalized duplicates and files with explicit source/augmentation naming are assigned as groups, so a known family cannot cross splits.
+The maximized, light-theme desktop UI includes:
 
-The current dataset was generated with a small shared set of fonts and procedural transformations. Its filenames do not preserve the generating font or an original-sample identifier. Therefore the measured validation/test accuracy is valid for held-out samples from the same synthetic generator distribution, but it is not evidence of equal performance on handwriting, camera images, scans, or unseen fonts. Future generators should save provenance such as `source_id`, font, writer, and augmentation parent so entire sources can be held out.
+- character dataset browser, uploads, confidence, top-3 predictions, and correctness;
+- word and sentence upload modes;
+- original, binary, and segmentation previews;
+- per-crop diagnostics and uncertain-character handling;
+- optional translation and copy controls;
+- held-out sample evaluation;
+- checkpoint-derived model information;
+- visual character/word/sentence pipeline explanations;
+- real training accuracy, loss, and learning-rate graphs.
 
-The bundled checkpoint was migrated from the historical per-image random split and predates `cnn_data_split.json`. Until a fresh training run uses the manifest, manifest-partition results are diagnostic rather than genuinely held-out from that checkpoint. The diagnostics and GUI state this explicitly instead of presenting those figures as independent validation/test accuracy.
+### Screenshots
 
-## Diagnostics
+All screenshots below were captured from the implemented application. The documentation utility renders printed samples, runs the real active CNN and segmentation pipeline, runs a real small held-out evaluation, and captures the resulting windows.
 
-Before a long training run, perform the read-only full dataset preflight:
+#### Character prediction
 
-```powershell
-.venv\Scripts\python.exe src\preflight_training.py --all-images
+![Character prediction](docs/screenshots/character-prediction.png)
+
+#### Word OCR and segmentation diagnostics
+
+![Word OCR](docs/screenshots/word-ocr.png)
+
+#### Sentence OCR
+
+![Sentence OCR](docs/screenshots/sentence-ocr.png)
+
+<details>
+<summary>More application screens</summary>
+
+#### Segmentation overlay
+
+![Segmentation overlay](docs/screenshots/segmentation-overlay.png)
+
+#### Held-out evaluation
+
+![Held-out evaluation](docs/screenshots/evaluation.png)
+
+#### Model information
+
+![Model information](docs/screenshots/model-information.png)
+
+#### OCR pipeline
+
+![OCR pipeline](docs/screenshots/ocr-pipeline.png)
+
+#### Saved training history
+
+![Training graphs](docs/screenshots/training-graphs.png)
+
+</details>
+
+## Installation
+
+The examples below use Windows Command Prompt from the repository root.
+
+```bat
+cd /d "C:\Users\enkud\Desktop\Projects\AI\amharic-character-ai"
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install --upgrade pip
+.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-This decodes every image, rejects blank images and identical content with conflicting labels, validates the canonical 290-class mapping, and checks the CNN output shape. It does not train or write model artifacts.
+Run the desktop app:
 
-Run all three labeled splits separately:
-
-```powershell
-.venv\Scripts\python.exe sanity_test.py
-```
-
-Sample a smaller number from each split:
-
-```powershell
-.venv\Scripts\python.exe sanity_test.py --limit 100
-```
-
-Evaluate labeled external images arranged as `external/<character>/<image>`:
-
-```powershell
-.venv\Scripts\python.exe sanity_test.py --external-dir path\to\external
-```
-
-Training, validation, test, and external results are never combined. External accuracy is reported as N/A unless labeled examples are supplied.
-
-## Prediction and GUI
-
-```powershell
-.venv\Scripts\python.exe src\predict.py path\to\image.png
+```bat
 .venv\Scripts\python.exe src\gui.py
 ```
 
-Dataset images use the same shared resize/tensor path used by training. External images additionally receive whitespace removal and an aspect-preserving centered fit before that same tensor conversion. The GUI only shows CORRECT/WRONG when the image comes from the labeled dataset.
+Run single-character inference from the command line:
 
-## Legacy linear experiments
-
-The `LinearModel` and early phase scripts remain in the repository as learning history. They are not imported by the active CNN GUI, predictor, trainer, or diagnostics. Historical ambiguous artifacts such as `best_model_weights.pth`, `model_config.json`, and `simple_model_weights.pth` are not active model files.
-
-To migrate a known CNN state dict from the historical ambiguous names once, run:
-
-```powershell
-.venv\Scripts\python.exe src\migrate_cnn_checkpoint.py
+```bat
+.venv\Scripts\python.exe src\predict.py path\to\character.png
 ```
 
-The migration validates convolutional tensor names and output size before writing the explicit active CNN artifacts.
+Run the automated tests:
 
-## Tests
-
-```powershell
-.venv\Scripts\python.exe -m unittest discover -v
+```bat
+.venv\Scripts\python.exe -m unittest discover -s tests -v
 .venv\Scripts\python.exe test_gui_script.py
 ```
 
-The GUI smoke test confirms that one image passed directly through the inference engine and through the GUI produces identical logits, probabilities, prediction, and confidence.
+Regenerate the real documentation screenshots:
+
+```bat
+.venv\Scripts\python.exe scripts\capture_gui_screenshots.py
+```
+
+### Resume training safely
+
+`--max-epochs` is a cumulative target. Because the latest compatible checkpoint has completed epoch 27, this command resumes at epoch 28 and stops at epoch 200 or earlier if early stopping triggers:
+
+```bat
+.venv\Scripts\python.exe src\train.py --max-epochs 200
+```
+
+Do not add `--fresh` unless you deliberately want to archive the current active training artifacts and start again from random weights.
+
+## Optional Amharic-to-English translation
+
+OCR runs locally and does not require translation or internet access. Translation is a separate, replaceable step implemented in `src/translation.py`.
+
+The default provider is the documented MyMemory GET API:
+
+```text
+https://api.mymemory.translated.net/get?q=...&langpair=am|en
+```
+
+No paid key is required for the normal demo. Only reconstructed text is sent after the user selects **Translate**; images, model inputs, logits, and crops remain local. Requests use a timeout and UTF-8 byte-aware chunking. Network or provider failure leaves the Amharic OCR result intact.
+
+Optional environment settings:
+
+```bat
+set ETHIOPIC_TRANSLATION_EMAIL=name@example.com
+set ETHIOPIC_TRANSLATION_ENDPOINT=https://api.mymemory.translated.net/get
+```
+
+Provider documentation: [MyMemory API specification](https://mymemory.translated.net/doc/spec.php). Review the provider's current terms before public or high-volume use.
+
+## Repository map
+
+```text
+src/
+├── cnn_model.py          # active CharacterCNN architecture
+├── preprocessing.py      # one shared image/tensor contract
+├── inference.py          # checkpoint loading and batched predictions
+├── segmentation.py       # OpenCV word/line structure detection
+├── ocr_engine.py         # traceable reconstruction and uncertainty
+├── translation.py        # optional replaceable translation provider
+├── gui.py                # desktop shell and character/evaluation pages
+├── gui_ocr.py            # word and sentence pages
+├── gui_insights.py       # model, pipeline, and graph pages
+├── training.py           # train/resume/evaluate/checkpoint loop
+├── training_history.py   # real CSV history loading and plots
+├── characters.json       # canonical 290-class inventory
+└── legacy_linear/        # preserved educational linear-model history
+
+models/
+├── best_cnn_model.pth    # active best weights and metadata
+├── latest_cnn_checkpoint.pth
+├── cnn_model_config.json
+├── cnn_data_split.json
+├── cnn_training_metrics.csv
+└── archive/              # recoverable earlier training artifacts
+
+tests/                    # preprocessing, split, checkpoint, OCR, and UI metadata tests
+docs/screenshots/         # real application captures
+docs/samples/             # generated printed demo images
+handouts/HANDOUT.md       # concise educational milestone summary
+ProjectSteps.md           # complete learning roadmap
+```
+
+## Testing and diagnosis
+
+The test suite separates structural and recognition failures:
+
+- segmentation count and reading order across clean, large, small, shifted, whitespace, multi-font, multi-word, and full-line inputs;
+- shared preprocessing shape, value range, and foreground occupancy;
+- batched inference parity with single-image inference;
+- word reconstruction and low-confidence unknown handling;
+- an active-checkpoint end-to-end `ሰላም` recognition test;
+- translation URL, chunking, timeout, and failure behavior;
+- real-history parsing and plotting;
+- GUI startup and direct-inference parity.
+
+When OCR is wrong, inspect the overlay and per-character cards first:
+
+```text
+wrong number/order of boxes → segmentation problem
+correct boxes, wrong labels  → CNN/generalization problem
+correct raw label, shown ?   → confidence-threshold decision
+```
+
+## Scientific limitations
+
+- The 348,000-image training set is synthetic-heavy and cannot represent every real printer, camera, scan, or document condition.
+- Handwriting is not integrated in this stage.
+- The first segmentation system targets clean printed words and lines, not arbitrary full pages.
+- Touching, overlapping, broken, decorative, or strongly skewed glyphs can defeat component heuristics.
+- Printed punctuation and complex multi-line layout are not yet a complete document-analysis system.
+- A high softmax score is model confidence, not a guarantee of correctness or calibration.
+- Word and sentence accuracy depend on both segmentation and per-character classification; errors can compound.
+- The independent full-test metric is unavailable until a training run completes final evaluation.
+- English translation is external, may be unavailable, and is not part of the trained OCR intelligence.
+
+## Future work
+
+Completed work and future research are intentionally separated. Possible next stages include:
+
+- real handwritten Ethiopic datasets with writer-independent splits;
+- mixed printed/handwritten training that preserves printed capability;
+- word-level sequence recognition and word-accuracy evaluation;
+- CTC-based OCR;
+- CNN plus recurrent sequence models;
+- transformer and vision-transformer OCR;
+- full-page text detection and document segmentation;
+- language-model correction using legal/open Amharic corpora;
+- contextual Amharic OCR;
+- confidence calibration and rejection analysis;
+- speech recognition and text-to-speech;
+- multimodal Ethiopian-language AI.
+
+Handwriting remains future work. When it is introduced, printed samples should remain in the training mixture rather than being replaced.
+
+## Educational principle
+
+The important outcome is not merely “I built an OCR application.” It is being able to explain how images become tensors, how labels create supervised examples, how logits and loss measure mistakes, how gradients and optimizers change weights, how validation measures generalization, how CNNs learn visual features, and how character intelligence becomes traceable word and sentence OCR.
