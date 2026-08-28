@@ -64,46 +64,85 @@ class InferenceEngine:
         prepare_external: bool,
         top_k: int = 3,
     ) -> Prediction:
-        tensor = preprocess_image(
-            image,
-            self.bundle.preprocessing,
-            prepare_external=prepare_external,
-        ).unsqueeze(0)
-        if tensor.shape != (
-            1,
+        return self.predict_images(
+            [image], prepare_external=prepare_external, top_k=top_k
+        )[0]
+
+    def predict_images(
+        self,
+        images: list[Image.Image],
+        *,
+        prepare_external: bool,
+        top_k: int = 3,
+    ) -> tuple[Prediction, ...]:
+        """Run one CNN batch while preserving the shared preprocessing contract."""
+        if not images:
+            return ()
+        tensors = [
+            preprocess_image(
+                image,
+                self.bundle.preprocessing,
+                prepare_external=prepare_external,
+            )
+            for image in images
+        ]
+        tensor = torch.stack(tensors)
+        expected_shape = (
+            len(images),
             1,
             self.bundle.preprocessing.height,
             self.bundle.preprocessing.width,
-        ):
-            raise RuntimeError(f"Unexpected CNN tensor shape: {tuple(tensor.shape)}")
+        )
+        if tuple(tensor.shape) != expected_shape:
+            raise RuntimeError(
+                f"Unexpected CNN tensor shape: {tuple(tensor.shape)}, expected {expected_shape}."
+            )
 
         self.bundle.model.eval()
         with torch.inference_mode():
             logits = self.bundle.model(tensor)
             probabilities = torch.softmax(logits, dim=1)
-        probability_sum = float(probabilities[0].sum().item())
-        if abs(probability_sum - 1.0) > 1e-5:
-            raise RuntimeError(f"Softmax probabilities sum to {probability_sum}, expected 1.0.")
+        probability_sums = probabilities.sum(dim=1)
+        if not torch.allclose(
+            probability_sums,
+            torch.ones_like(probability_sums),
+            atol=1e-5,
+        ):
+            raise RuntimeError("One or more Softmax probability rows do not sum to 1.0.")
 
         count = min(max(1, top_k), probabilities.shape[1])
-        top_probabilities, top_indices = probabilities[0].topk(count)
-        ranked = tuple(
-            RankedPrediction(
-                character=self.bundle.idx_to_class[int(index)],
-                probability=float(probability),
-                class_index=int(index),
+        results = []
+        for row in range(len(images)):
+            top_probabilities, top_indices = probabilities[row].topk(count)
+            ranked = tuple(
+                RankedPrediction(
+                    character=self.bundle.idx_to_class[int(index)],
+                    probability=float(probability),
+                    class_index=int(index),
+                )
+                for probability, index in zip(
+                    top_probabilities.tolist(), top_indices.tolist()
+                )
             )
-            for probability, index in zip(top_probabilities.tolist(), top_indices.tolist())
-        )
-        return Prediction(
-            predicted_character=ranked[0].character,
-            confidence=ranked[0].probability,
-            probabilities=tuple(float(value) for value in probabilities[0].tolist()),
-            logits=tuple(float(value) for value in logits[0].tolist()),
-            top_predictions=ranked,
-            probability_sum=probability_sum,
-            tensor_shape=tuple(tensor.shape),
-        )
+            results.append(
+                Prediction(
+                    predicted_character=ranked[0].character,
+                    confidence=ranked[0].probability,
+                    probabilities=tuple(
+                        float(value) for value in probabilities[row].tolist()
+                    ),
+                    logits=tuple(float(value) for value in logits[row].tolist()),
+                    top_predictions=ranked,
+                    probability_sum=float(probability_sums[row].item()),
+                    tensor_shape=(
+                        1,
+                        1,
+                        self.bundle.preprocessing.height,
+                        self.bundle.preprocessing.width,
+                    ),
+                )
+            )
+        return tuple(results)
 
     def predict_path(self, image_path: Path, *, top_k: int = 3) -> Prediction:
         path = Path(image_path).resolve()
