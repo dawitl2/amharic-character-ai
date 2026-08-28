@@ -319,6 +319,14 @@ set ETHIOPIC_TRANSLATION_ENDPOINT=https://api.mymemory.translated.net/get
 
 Provider documentation: [MyMemory API specification](https://mymemory.translated.net/doc/spec.php). Review the provider's current terms before public or high-volume use.
 
+### API used
+
+| Integration | Endpoint | Data sent | Required for OCR? |
+| --- | --- | --- | --- |
+| MyMemory translation | `https://api.mymemory.translated.net/get` | Reconstructed Amharic text after the user selects **Translate** | No |
+
+The request uses the documented `q` and `langpair=am|en` query parameters. An API key is not required for the normal demonstration. The provider is isolated behind `MyMemoryTranslationProvider`, so it can be replaced without changing segmentation, CNN inference, or text reconstruction. Translation errors and internet outages do not remove the local Amharic result.
+
 ## Repository map
 
 ```text
