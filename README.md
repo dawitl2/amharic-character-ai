@@ -1,4 +1,6 @@
-# Ethiopic: A Supervised Learning Pipeline
+<h1 align="center">Ethiopic: A Supervised Learning Pipeline</h1>
+
+<p align="center"><em>From labeled Ethiopic pixels to locally trained character, word, and sentence OCR</em></p>
 
 An educational, end-to-end Amharic and Ethiopic Optical Character Recognition (OCR) ecosystem built with Python, PyTorch, OpenCV, Pillow, and CustomTkinter, specifically designed as a hands-on foundation for supervised learning, AI model training, and algorithmic development.
 
@@ -20,6 +22,25 @@ The repository now supports three explicit recognition paths:
 | Translation | reconstructed Amharic text → replaceable external provider → English | Optional; OCR remains usable offline |
 
 The active checkpoint and all earlier learning artifacts are preserved. Word and sentence recognition reuse the existing CNN; no word-level model has replaced it.
+
+## Technology stack
+
+The stack is intentionally separated by responsibility so each layer of the system remains understandable and replaceable.
+
+| System level | Technology | Responsibility |
+| --- | --- | --- |
+| Language and runtime | Python 3.12 | Application, training, inference, and tooling |
+| Deep learning | PyTorch | CNN architecture, tensors, training, checkpoints, and inference |
+| Dataset utilities | torchvision | Image-folder datasets and tensor transforms |
+| Computer vision | OpenCV | Thresholding, morphology, connected components, segmentation, and reading order |
+| Image processing | Pillow and NumPy | Image loading, drawing, crop preparation, and pixel arrays |
+| Desktop interface | CustomTkinter and Tkinter | Full-window OCR workflow, uploads, previews, and diagnostics |
+| Model visualization | Matplotlib | Real training accuracy, loss, and learning-rate graphs |
+| Translation integration | Python `urllib` and MyMemory | Optional Amharic-to-English text translation after OCR |
+| Verification | `unittest` | Segmentation, preprocessing, inference, reconstruction, translation, and metadata tests |
+| Version control | Git and GitHub | Source history, granular commits, collaboration, and documentation |
+
+No external OCR model, hosted AI model, or Vercel service performs recognition. Character intelligence comes from the local `CharacterCNN` checkpoint in this repository.
 
 ## Why supervised learning is central
 
