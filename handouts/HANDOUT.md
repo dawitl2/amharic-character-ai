@@ -1,546 +1,212 @@
-# Amharic Character Recognition — Handout
+# Ethiopic OCR — Current Project Handout
 
-This file is a simple explanation of the project and should be updated as the project progresses.
+## What have we built?
 
-The purpose of the handout is to answer:
+We have built an educational supervised-learning system for printed Amharic/Ethiopic OCR.
 
-```text
-What have we built?
-What does each part mean?
-Where are we right now?
-What happens next?
-```
-
----
-
-# What Are We Building?
-
-We are building a supervised-learning system that recognizes Amharic/Ethiopic characters.
-
-Current goal:
+It now supports:
 
 ```text
-character image
-↓
-neural network
-↓
-predicted character
+single character image
+→ our trained CNN
+→ one of 290 Ethiopic characters
+
+printed word image
+→ OpenCV character segmentation
+→ our trained CNN for every crop
+→ reconstructed word
+
+printed sentence/line image
+→ OpenCV word and character segmentation
+→ our trained CNN for every crop
+→ reconstructed Amharic text
+→ optional external English translation
 ```
 
-Current characters:
+The OCR intelligence is ours: the local `CharacterCNN` was trained from the project's labeled dataset. The optional translation provider receives reconstructed text only. It does not inspect images and does not perform OCR.
+
+## Why are we building it?
+
+OCR products already exist. This project is designed to learn how intelligence is trained rather than using an OCR model as a black box.
+
+The central idea is **supervised learning**:
 
 ```text
-ሀ
-ለ
-መ
+image tensor + correct label
+↓
+CNN logits
+↓
+cross-entropy loss
+↓
+backpropagation and gradients
+↓
+optimizer updates weights
+↓
+the model improves through repetition
 ```
 
-PyTorch represents them as:
+## Current active model
+
+| Item | Saved value |
+| --- | ---: |
+| Architecture | CharacterCNN |
+| Classes | 290 |
+| Parameters | 1,090,914 |
+| Input | 64 × 64 grayscale |
+| Dataset | 348,000 images |
+| Train / validation / test | 243,600 / 52,200 / 52,200 |
+| Completed epochs | 27 |
+| Epoch 27 training accuracy | 97.4224% |
+| Best validation accuracy | 93.9751% |
+| Best epoch | 27 |
+| Full independent test accuracy | Not yet recorded |
+
+The previous training window was closed before the run reached its final-test step. The best and latest CNN checkpoints remain intact, so training can resume at epoch 28.
+
+## Character recognition
+
+The CNN receives a tensor shaped like:
 
 ```text
-ሀ → 0
-ለ → 1
-መ → 2
+[batch, 1, 64, 64]
 ```
 
----
-
-# Project Structure
+Its architecture is:
 
 ```text
-amharic-character-ai/
-│
-├── .venv/
-├── .gitignore
-├── data/
-│   ├── ሀ/
-│   ├── ለ/
-│   └── መ/
-│
-└── src/
-    ├── check_setup.py
-    ├── generate_character.py
-    ├── generate_dataset.py
-    ├── inspect_image.py
-    ├── inspect_dataset.py
-    ├── split_dataset.py
-    ├── inspect_dataloader.py
-    ├── simple_model.py
-    └── loss_demo.py
+64×64 grayscale
+→ Conv 1→16
+→ ReLU
+→ MaxPool
+→ Conv 16→32
+→ ReLU
+→ MaxPool
+→ Flatten 8,192
+→ Linear 128
+→ ReLU
+→ 290 logits
+→ character
 ```
 
----
+The logits are raw class scores. Softmax turns them into inference probabilities. A high probability is confidence, not proof that the answer is correct.
 
-# `.venv`
+## Word and sentence OCR
 
-Contains the Python libraries used by the project.
-
-Examples:
+OpenCV and the CNN have different jobs:
 
 ```text
-PyTorch
-torchvision
-NumPy
-Pillow
-Matplotlib
-scikit-learn
+OpenCV = WHERE is each word or character?
+CNN    = WHAT character is inside each crop?
 ```
 
-It is ignored by Git and is not uploaded to GitHub.
+Segmentation uses:
 
----
+- grayscale and polarity detection;
+- Otsu thresholding and adaptive thresholding when lighting is uneven;
+- morphological noise removal;
+- connected components;
+- grouping of plausible disconnected glyph pieces;
+- vertical projection valleys for unusually wide components;
+- relative line, spacing, and word-gap analysis;
+- top-to-bottom, left-to-right reading order.
 
-# `data/`
+It does not assume one contour always equals one character.
 
-Contains the images used by the model.
+## Shared preprocessing
 
-Current structure:
+All external characters and segmented crops reuse `src/preprocessing.py`:
 
 ```text
-data/
-├── ሀ/
-├── ለ/
-└── መ/
+grayscale
+→ remove surrounding whitespace
+→ preserve aspect ratio
+→ fit glyph to the training-like scale
+→ center on a square 64×64 canvas
+→ convert to tensor
+→ apply the checkpoint's normalization
 ```
 
-The folder name is the correct answer.
+Keeping one preprocessing contract prevents the GUI, tests, and OCR engine from sending different kinds of tensors to the model.
 
-Example:
+## Diagnosing a wrong word
+
+The GUI deliberately shows blue word boxes, green character boxes, each crop, the raw prediction, confidence, and uncertainty state.
 
 ```text
-data/ሀ/synthetic_001.png
+wrong number/order of boxes
+→ segmentation problem
+
+correct boxes but wrong character
+→ CNN/generalization problem
+
+correct raw character but displayed ?
+→ confidence threshold decision
 ```
 
-means:
+Low-confidence characters are not silently presented as reliable. The readable result can show `?`, while the raw CNN guess remains visible.
+
+## Translation
+
+Translation is optional and modular:
 
 ```text
-image = input
-ሀ = correct label
+our OCR engine
+→ reconstructed Amharic text
+→ MyMemory translation provider
+→ English text
 ```
 
-This is why the project is supervised learning.
+Only text is sent when **Translate** is selected. If the internet or provider fails, the Amharic OCR result remains available.
 
----
+## Desktop application
 
-# `generate_character.py`
+The light, maximized desktop interface has these sections:
 
-Creates one synthetic character image.
+- **Character** — dataset browser, upload, confidence, top predictions, correctness;
+- **Word OCR** — upload, segmentation preview, word, crops, confidence, translation;
+- **Sentence OCR** — word/character boxes, reading order, text, translation;
+- **Evaluate** — random labeled samples from the selected split;
+- **Model Info** — checkpoint-derived facts and metrics;
+- **Pipeline** — visual explanations of character, word, and sentence processing;
+- **Training Graphs** — real saved accuracy, loss, and learning-rate history.
 
-It:
+## Where are we now?
 
 ```text
-creates a 64 × 64 canvas
-↓
-loads an Ethiopic font
-↓
-draws a character
-↓
-centers it
-↓
-saves the image
+labeled synthetic data                 complete
+linear learning baseline               preserved
+290-class CNN                           trained through epoch 27
+single-character application           complete
+printed word segmentation              first robust version complete
+printed sentence/line segmentation     first robust version complete
+traceable CNN reconstruction           complete
+optional text translation              complete
+handwriting                             future work
+full-page arbitrary document OCR       future work
 ```
 
----
+## Run the application
 
-# `generate_dataset.py`
+From Windows Command Prompt:
 
-Creates multiple versions of the characters.
-
-Current dataset:
-
-```text
-ሀ
-ለ
-መ
+```bat
+cd /d "C:\Users\enkud\Desktop\Projects\AI\amharic-character-ai"
+.venv\Scripts\python.exe src\gui.py
 ```
 
-using multiple fonts and font sizes.
+## Resume the interrupted training run
 
-We currently have about:
+This resumes from the compatible latest checkpoint. It does not erase epoch 27:
 
-```text
-33 images
+```bat
+cd /d "C:\Users\enkud\Desktop\Projects\AI\amharic-character-ai"
+.venv\Scripts\python.exe src\train.py --max-epochs 200
 ```
 
-This dataset is intentionally small while we learn the complete pipeline.
+`--fresh` should be used only when intentionally starting again from random weights. Fresh mode first archives the active artifacts for recovery.
 
----
+## What happens next?
 
-# `inspect_image.py`
+The next immediate step is to resume training and let the run complete its independent test evaluation. After that, test printed words and lines from real scanners/cameras and expand segmentation tests around observed failures.
 
-Shows how an image becomes numbers.
-
-A 64 × 64 grayscale image becomes:
-
-```text
-torch.Size([1, 64, 64])
-```
-
-Meaning:
-
-```text
-1 grayscale channel
-64 height
-64 width
-```
-
-The model does not literally see `ሀ`.
-
-It sees numerical pixel values.
-
-Approximately:
-
-```text
-0.0 = black
-1.0 = white
-```
-
----
-
-# `inspect_dataset.py`
-
-Loads the character folders as a PyTorch dataset.
-
-It discovers:
-
-```text
-ሀ → 0
-ለ → 1
-መ → 2
-```
-
-Every training sample therefore contains:
-
-```text
-image tensor
-+
-correct numerical label
-```
-
----
-
-# `split_dataset.py`
-
-Divides the data into:
-
-```text
-23 training images
-5 validation images
-5 test images
-```
-
-Training data teaches the model.
-
-Validation data helps us evaluate it while developing.
-
-Test data is used as a final examination.
-
----
-
-# `inspect_dataloader.py`
-
-Introduced batches.
-
-Instead of sending one image at a time, we can send several together.
-
-Example:
-
-```text
-torch.Size([4, 1, 64, 64])
-```
-
-means:
-
-```text
-4 images
-1 grayscale channel
-64 × 64 pixels
-```
-
-Their labels might look like:
-
-```text
-[1, 2, 0, 2]
-```
-
-which means:
-
-```text
-ለ
-መ
-ሀ
-መ
-```
-
----
-
-# `simple_model.py`
-
-Contains our first neural network.
-
-It is deliberately simple:
-
-```text
-64 × 64 image
-↓
-4096 pixels
-↓
-Flatten
-↓
-Linear layer
-↓
-3 scores
-```
-
-The three scores correspond to:
-
-```text
-ሀ
-ለ
-መ
-```
-
-The model currently starts with random weights.
-
----
-
-# Logits
-
-The three raw scores produced by the model are called **logits**.
-
-Example:
-
-```text
-[0.3, 1.8, 0.1]
-```
-
-means approximately:
-
-```text
-ሀ → 0.3
-ለ → 1.8
-መ → 0.1
-```
-
-The largest score gives the current prediction.
-
-Here:
-
-```text
-1.8
-```
-
-is largest, so the model predicts:
-
-```text
-ለ
-```
-
-Logits are not probabilities.
-
-They are raw model scores.
-
----
-
-# Correct Label
-
-The correct answer is only one number.
-
-Example:
-
-```text
-1
-```
-
-means:
-
-```text
-ለ
-```
-
-We are **not** comparing three predefined numbers against three model numbers.
-
-Instead:
-
-```text
-model produces three logits
-+
-dataset provides one correct label
-↓
-loss function
-```
-
----
-
-# Loss
-
-Loss tells us how wrong the model currently is.
-
-We use:
-
-```text
-CrossEntropyLoss
-```
-
-Conceptually:
-
-```text
-model outputs
-+
-correct answer
-↓
-loss
-```
-
-Lower loss generally means better predictions.
-
-A perfect model would attempt to push loss toward zero.
-
----
-
-# `loss_demo.py`
-
-This is where we are currently working.
-
-We manually created example logits and correct labels.
-
-Then we calculated:
-
-```text
-loss = 0.3144
-```
-
-After that we ran:
-
-```python
-loss.backward()
-```
-
-This performs backpropagation.
-
----
-
-# Gradient
-
-A gradient tells us how changing a value would affect the loss.
-
-Very simply:
-
-```text
-change this upward
-change this downward
-change this a lot
-change this only slightly
-```
-
-Gradients provide directions for improving the model.
-
-But gradients themselves do **not** change the model.
-
----
-
-# Current Exact Position
-
-```text
-image
-↓
-model
-↓
-logits
-↓
-prediction
-↓
-correct label
-↓
-loss
-↓
-backpropagation
-↓
-gradients
-↓
-WE ARE HERE
-↓
-optimizer
-↓
-update weights
-↓
-repeat
-↓
-learning
-```
-
-The model has **not yet completed real training**.
-
-We have learned how to calculate the information required for training.
-
-The next major topic is the optimizer.
-
----
-
-# What Happens Next?
-
-The optimizer will use the gradients to modify the model's weights.
-
-Then we can create the complete training cycle:
-
-```text
-images
-↓
-model
-↓
-predictions
-↓
-loss
-↓
-backpropagation
-↓
-gradients
-↓
-optimizer
-↓
-updated weights
-↓
-repeat
-```
-
-Repeating this process across the training dataset is what will actually teach the model to recognize the characters.
-
----
-
-# Long-Term Direction
-
-The project can eventually progress through:
-
-```text
-single printed characters
-↓
-larger Ethiopic character set
-↓
-CNN
-↓
-better datasets
-↓
-handwriting recognition
-↓
-character segmentation
-↓
-word recognition
-↓
-line recognition
-↓
-full Amharic OCR
-↓
-OCR + NLP
-↓
-context-aware Amharic document understanding
-```
-
-The handout should be updated whenever a major project milestone changes our understanding of the system.
-
-# Phase 28: Full Printed Character Expansion
-
-We have expanded the dataset and model to support 290 standard Amharic characters (bases + orders + labiovelars + labialized forms). The dataset generates 1200 instances for each character using 4 different Amharic fonts, totaling 348,000 images.
-
-Legacy linear models have been organized to `src/legacy_linear/`, and the GUI has been completely reimagined into a clean Tabview-based Light-theme interface to manage the increasingly complex diagnostic metrics.
-
-Since the number of characters expanded from 10 to 290, old 10-class checkpoints are now strictly incompatible and safely rejected by the training system. We will start fresh retraining from random weights using the 290-class dataset.
+Handwriting remains a later stage. When introduced, printed and handwritten examples should be mixed so improved handwriting support does not replace the working printed capability.
