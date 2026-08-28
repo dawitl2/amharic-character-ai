@@ -25,7 +25,7 @@ def _accuracy(value) -> str:
     return "N/A" if value is None else f"{float(value):.2f}%"
 
 
-class ModelInfoPage(ctk.CTkScrollableFrame):
+class ModelInfoPage(ctk.CTkFrame):
     def __init__(self, parent, bundle):
         super().__init__(parent, fg_color=BACKGROUND)
         metadata = bundle.metadata
@@ -185,6 +185,8 @@ class PipelinePage(ctk.CTkFrame):
     def _build_flow(parent, steps) -> None:
         container = ctk.CTkFrame(parent, fg_color="transparent")
         container.pack(fill="both", expand=True, padx=28, pady=28)
+        container.grid_columnconfigure((0, 1, 2), weight=1, uniform="flow")
+        container.grid_rowconfigure((0, 1), weight=1, uniform="flow")
         for index, (title, description) in enumerate(steps):
             step = ctk.CTkFrame(
                 container,
@@ -192,10 +194,14 @@ class PipelinePage(ctk.CTkFrame):
                 border_color=BORDER,
                 border_width=1,
                 corner_radius=9,
-                height=72,
             )
-            step.pack(fill="x", padx=80, pady=4)
-            step.pack_propagate(False)
+            step.grid(
+                row=index // 3,
+                column=index % 3,
+                sticky="nsew",
+                padx=10,
+                pady=10,
+            )
             ctk.CTkLabel(
                 step,
                 text=str(index + 1),
@@ -205,23 +211,18 @@ class PipelinePage(ctk.CTkFrame):
                 fg_color=SOFT_BLUE,
                 text_color=PRIMARY,
                 font=("Segoe UI", 15, "bold"),
-            ).pack(side="left", padx=16)
+            ).pack(anchor="w", padx=18, pady=(18, 8))
             copy = ctk.CTkFrame(step, fg_color="transparent")
-            copy.pack(side="left", fill="both", expand=True, pady=11)
+            copy.pack(fill="both", expand=True, padx=18, pady=(0, 18))
             ctk.CTkLabel(
                 copy,
                 text=title,
                 font=("Segoe UI", 13, "bold"),
                 text_color=TEXT,
             ).pack(anchor="w")
-            muted_label(copy, description).pack(anchor="w")
-            if index < len(steps) - 1:
-                ctk.CTkLabel(
-                    container,
-                    text="↓",
-                    font=("Segoe UI", 16),
-                    text_color=PRIMARY,
-                ).pack(pady=0)
+            muted_label(copy, description, wraplength=340, justify="left").pack(
+                anchor="w", pady=(5, 0)
+            )
 
 
 class TrainingGraphsPage(ctk.CTkFrame):
