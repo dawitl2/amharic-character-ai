@@ -8,6 +8,7 @@ from PIL import Image, ImageDraw, ImageFont
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from inference import Prediction, RankedPrediction  # noqa: E402
+from inference import InferenceEngine  # noqa: E402
 from ocr_engine import OCREngine  # noqa: E402
 
 
@@ -68,6 +69,17 @@ class OCREngineTests(unittest.TestCase):
         self.assertEqual(result.text, "ሰላም ሀገር")
         self.assertEqual(len(result.words), 2)
         self.assertEqual([len(word.characters) for word in result.words], [3, 3])
+
+    def test_active_cnn_reconstructs_clean_printed_word(self):
+        checkpoint = Path(__file__).resolve().parents[1] / "models" / "best_cnn_model.pth"
+        if not FONT_PATH.is_file() or not checkpoint.is_file():
+            self.skipTest("Active checkpoint or Ethiopic test font is unavailable.")
+        result = OCREngine(
+            InferenceEngine.from_artifacts(), confidence_threshold=0.50
+        ).recognize_word(render("ሰላም"))
+        self.assertEqual(len(result.characters), 3)
+        self.assertEqual(result.raw_text, "ሰላም")
+        self.assertEqual(result.text, "ሰላም")
 
 
 if __name__ == "__main__":
