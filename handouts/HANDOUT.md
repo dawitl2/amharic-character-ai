@@ -200,7 +200,7 @@ This resumes from the compatible latest checkpoint. It does not erase epoch 27:
 
 ```bat
 cd /d "C:\Users\enkud\Desktop\Projects\AI\amharic-character-ai"
-.venv\Scripts\python.exe src\train.py --max-epochs 200
+.venv\Scripts\python.exe src\train.py --max-epochs 200 --num-workers 2
 ```
 
 `--fresh` should be used only when intentionally starting again from random weights. Fresh mode first archives the active artifacts for recovery.

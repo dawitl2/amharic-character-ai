@@ -264,7 +264,7 @@ Regenerate the real documentation screenshots:
 `--max-epochs` is a cumulative target. Because the latest compatible checkpoint has completed epoch 27, this command resumes at epoch 28 and stops at epoch 200 or earlier if early stopping triggers:
 
 ```bat
-.venv\Scripts\python.exe src\train.py --max-epochs 200
+.venv\Scripts\python.exe src\train.py --max-epochs 200 --num-workers 2
 ```
 
 Do not add `--fresh` unless you deliberately want to archive the current active training artifacts and start again from random weights.
